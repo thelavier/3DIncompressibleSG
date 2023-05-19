@@ -9,6 +9,120 @@ import matplotlib.animation as animation
 def c(x, y):
     return (1/2) * abs(x[0] - y[0]) * abs(x[0] - y[0]) + (1/2) * abs(x[1] - y[1]) * abs(x[1] - y[1]) + (1/2) * abs(x[2] - y[2]) * abs(x[2] - y[2])
 
+#Construct initial condition
+def create_initial(N, maxx, maxy, maxz, minx, miny, minz, Type):
+    """
+    Function that constructs an initial condition. Allows for different distributions on different axes.
+
+    Inputs:
+        N: The number of seeds
+        maxx: The maximum position in the x direction
+        maxy: The maximum position in the y direction
+        maxz: The maximum position in the z direction
+        minx: The minimum position in the x direction
+        miny: The minimum position in the y direction
+        minz: The minimum position in the z direction
+        Type: Type of initial condition to generate
+
+    Outputs:
+        matrix: The initial seeds positions
+    """
+
+    #Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
+    croot = round(N ** (1 / 3))
+
+    if Type == 'uniform wsp':
+        # Generate random values for the first and second columns
+        col_0 = np.random.uniform(minx, maxx, size=N)
+        col_1 = np.random.uniform(miny, maxy, size=N)
+
+        # Generate random values for the third column
+        col_2 = np.random.uniform( 2 * np.sin(col_0), 2 * np.sin(col_1), size=N)
+
+        # Create the matrix by concatenating the columns
+        matrix = np.column_stack((col_0, col_1, col_2))
+
+        return matrix
+
+    elif Type == 'normal':
+        # Generate random values for the first and second columns
+        col_0 = np.random.normal(0, maxx, size=N)
+        col_1 = np.random.normal(0, maxy, size=N)
+
+        # Generate random values for the third column
+        col_2 = np.random.normal(0, maxz, size=N)
+
+        # Create the matrix by concatenating the columns
+        matrix = np.column_stack((col_0, col_1, col_2))
+
+        return matrix
+
+    elif Type == 'linear':
+            # Generate  values for the first and second columns
+            col_0 = np.linspace(minx, maxx, N)
+            col_1 = np.linspace(miny, maxy, N)
+    
+            # Generate random values for the third column
+            col_2 = np.linspace(minz, maxz, N)
+    
+            # Create the matrix by concatenating the columns
+            matrix = np.column_stack((col_0, col_1, col_2))
+    
+            return matrix
+
+    elif Type == 'linear wsp':
+        # Generate  values for the first and second columns
+        col_0 = np.linspace(minx, maxx, N)
+        col_1 = np.linspace(miny, maxy, N)
+
+        # Generate random values for the third column
+        col_2 = 2 * np.sin(np.linspace(minz, maxz, N))
+
+        # Create the matrix by concatenating the columns
+        matrix = np.column_stack((col_0, col_1, col_2))
+
+        return matrix
+
+    elif Type == 'lattice' and N == croot ** 3:
+        # Create coordinate arrays for each dimension
+        col_0 = np.linspace(minx, maxx, croot)
+        col_1 = np.linspace(miny, maxy, croot)
+        col_2 = np.linspace(minz, maxz, croot)
+
+        # Create a 3D lattice using meshgrid
+        Col_0, Col_1, Col_2 = np.meshgrid(col_0, col_1, col_2)
+
+        # Combine the coordinate arrays into a single matrix
+        matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
+
+        # Construct matrix of perturbations
+        perturbation = np.random.uniform(0.8, 1, size = (N, 3))
+
+        return matrix*perturbation
+
+    elif Type == 'lattice wsp' and N == croot ** 3:
+        # Create coordinate arrays for each dimension
+        col_0 = np.linspace(minx, maxx, croot)
+        col_1 = np.linspace(miny, maxy, croot)
+        col_2 = np.linspace(minz, maxz, croot)
+
+        # Create a 3D lattice using meshgrid
+        Col_0, Col_1, Col_2 = np.meshgrid(col_0, col_1, col_2)
+
+        # Transform the Z corrdinates to make a sine perturbation
+        Col_2 = 2 * np.sin(Col_0) * np.sin(Col_1)
+
+        # Combine the coordinate arrays into a single matrix
+        matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
+
+        # Construct matrix of perturbations
+        perturbation = np.random.uniform(0.8, 1, size = (N, 3))
+
+        return matrix * perturbation
+
+    else:
+        raise ValueError('Please specify the type of initial condition you want to use and make sure the number of seeds can generate a valid lattice.')
+
 #Define the rescaling function to improve the inital guess for the damped Newton Solver
 def Rescale_weights(bx, Z):
     """
@@ -100,8 +214,8 @@ def ot_centroids(domain, Y, psi0, err_tol):
         psi: The optimal weights
     """
     N = Y.shape[0] #Determine the number of seeds
-    ot = OptimalTransport(positions = Y, weights = psi0, masses = domain.measure() / N * np.ones(N), domain = domain) #Establish the Optimal Transport problem
-    ot.set_stopping_criterion(err_tol, "max delta masses") #Pick the stopping criterion to be the mass of the cells
+    ot = OptimalTransport(positions = Y, weights = psi0, masses = domain.measure() / N * np.ones(N), domain = domain, linear_solver= 'Petsc') #Establish the Optimal Transport problem
+    ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
 
     #print('Target masses before Damped Newton', ot.get_masses())
     #print('Weights before Damped Newton', ot.get_weights())
@@ -146,29 +260,29 @@ def animator(data, ZorC, Dim, tf):
 
     #Create the plot
     fig = plt.figure()
-    if Dim == "2D":
+    if Dim == '2D':
         ax = fig.add_subplot()
-    elif Dim == "3D":
+    elif Dim == '3D':
         ax = fig.add_subplot(projection='3d')
     else:
-        print("Please specify the dimension of the animation!")
+        print('Please specify the dimension of the animation!')
 
     def update(i):
         global Z
         global C
 
         #Update the plot
-        if ZorC == "Z":
-            if Dim == "2D":
+        if ZorC == 'Z':
+            if Dim == '2D':
                 ax.cla()
-                ax.scatter(Z[i][:,0], Z[i][:,1], color = 'red', s=3)
+                ax.scatter(Z[i][:,0], Z[i][:,1], c = Z[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
                 ax.set_xlim([-10, 10])
                 ax.set_ylim([-10, 10])
                 ax.set_xlabel('X')
                 ax.set_ylabel('Y')
-            elif Dim == "3D":
+            elif Dim == '3D':
                 ax.cla()
-                ax.scatter(Z[i][:,0], Z[i][:,1], Z[i][:,2], color = 'red', s=3)
+                ax.scatter(Z[i][:,0], Z[i][:,1], Z[i][:,2], c = Z[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
                 ax.set_xlim([-10, 10])
                 ax.set_ylim([-10, 10])
                 ax.set_zlim([-10, 10])
@@ -176,18 +290,18 @@ def animator(data, ZorC, Dim, tf):
                 ax.set_ylabel('Y')
                 ax.set_zlabel('Z')
             else:
-                print("Please specify the dimension of the animation!")
-        elif ZorC == "C":
-            if Dim == "2D":
+                print('Please specify the dimension of the animation!')
+        elif ZorC == 'C':
+            if Dim == '2D':
                 ax.cla()
-                ax.scatter(C[i][:,0], C[i][:,1], color = 'blue', s=3)
+                ax.scatter(C[i][:,0], C[i][:,1], c = C[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
                 ax.set_xlim([-3, 3])
                 ax.set_ylim([-3, 3])
                 ax.set_xlabel('X')
                 ax.set_ylabel('Y')
-            elif Dim == "3D":
+            elif Dim == '3D':
                 ax.cla()
-                ax.scatter(C[i][:,0], C[i][:,1], C[i][:,2], color = 'blue', s=3)
+                ax.scatter(C[i][:,0], C[i][:,1], C[i][:,2], c = C[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
                 ax.set_xlim([-3, 3])
                 ax.set_ylim([-3, 3])
                 ax.set_zlim([0, 1])
@@ -195,31 +309,31 @@ def animator(data, ZorC, Dim, tf):
                 ax.set_ylabel('Y')
                 ax.set_zlabel('Z')
             else:
-                print("Please specify the dimension of the animation!")
+                print('Please specify the dimension of the animation!')
         else:
-            print("Please specify if you want to animate the centroids or the seeds!")
+            print('Please specify if you want to animate the centroids or the seeds!')
 
-    if ZorC == "Z":
-        if Dim == "2D":
+    if ZorC == 'Z':
+        if Dim == '2D':
             ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
             FFwriter = animation.FFMpegWriter(fps = 1000)
             ani.save('SGSolSeedsin2D.gif', writer = FFwriter)
-        elif Dim == "3D":
+        elif Dim == '3D':
             ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
             FFwriter = animation.FFMpegWriter(fps = 1000)
             ani.save('SGSolSeedsin3D.gif', writer = FFwriter)
         else:
-            print("Please specify the dimension of the animation!")
-    elif ZorC == "C":
-        if Dim == "2D":
+            print('Please specify the dimension of the animation!')
+    elif ZorC == 'C':
+        if Dim == '2D':
             ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
             FFwriter = animation.FFMpegWriter(fps = 1000)
             ani.save('SGSolCentroidsin2D.gif', writer = FFwriter)
-        elif Dim == "3D":
+        elif Dim == '3D':
             ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
             FFwriter = animation.FFMpegWriter(fps = 1000)
             ani.save('SGSolCentroidsin3D.gif', writer = FFwriter)
         else:
-            print("Please specify the dimension of the animation!")
+            print('Please specify the dimension of the animation!')
     else:
-            print("Please specify if you want to animate the centroids or the seeds!")
+            print('Please specify if you want to animate the centroids or the seeds!')

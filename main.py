@@ -20,7 +20,7 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
     """
     #Bring parameters into the function
     box = Box
-    Z = InitialSeeds
+    Z0 = InitialSeeds
     N = NumberofSeeds
     per_tol = PercentTolerance
     tf = FinalTime
@@ -37,35 +37,44 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
     J = np.kron(np.eye(N, dtype=int), P)
 
     #Setup empty data structure
-    dataZ = np.zeros((Ndt, N, 3)) 
-    dataC = np.zeros((Ndt, N, 3))
-    dataw = np.zeros((Ndt, N))
+    Z = np.zeros((Ndt, N, 3)) 
+    C = np.zeros((Ndt, N, 3))
+    w = np.zeros((Ndt, N))
 
-    #Establish solver parameters
-    t = 0
-    err_tol = ( per_tol / 100 ) * (D.measure() / N) #Build the relative error tollereance 
+    #Build the relative error tollereance 
+    err_tol = ( per_tol / 100 ) * (D.measure() / N) 
 
-    #Apply forward Euler method to solve the ODE system
-    for i in range(Ndt):
+    #Construct the initial state
+    Z[0] = Z0
+    w0 = aux.Rescale_weights(box, Z[0])[0] #Rescale the weights to generate an optimized initial guess
+    sol = aux.ot_centroids(D, Z[0], w0, err_tol) #Solve the optimal transport problem
+    C[0] = sol[0].copy() #Store the centroids
+    w[0] = sol[1].copy() #Store the optimal weights
+
+    #Use forward Euler to take an initial time step
+    Z[1] = Z[0] + dt * (J @ (np.array(Z[0] - C[0]).flatten())).reshape((N, 3))
+    w0 = aux.Rescale_weights(box, Z[1])[0] #Rescale the weights to generate an optimized initial guess
+    sol = aux.ot_centroids(D, Z[1], w0, err_tol) #Solve the optimal transport problem
+    C[1] = sol[0].copy() #Store the centroids
+    w[1] = sol[1].copy() #Store the optimal weights
+
+    #Apply Adams-Bashforth 2 to solve the ODE
+    for i in range(2, Ndt):
+
+        #Use Adams-Bashforth to take a time step
+        Z[i] = Z[i - 1] + (dt / 2) * (3 * J @ (np.array(Z[i - 1] - C[i - 1]).flatten()) - J @ (np.array(Z[i - 2] - C[i - 2]).flatten())).reshape((N, 3))
 
         #Rescale the weights to generate an optimized initial guess
-        #w0 = 0*np.ones(N)
-        w0 = aux.Rescale_weights(box, Z)[0]
+        w0 = aux.Rescale_weights(box, Z[i])[0]
 
         #Solve the optimal transport problem
-        sol = aux.ot_centroids(D, Z, w0, err_tol)
-        C = sol[0]
+        sol = aux.ot_centroids(D, Z[i], w0, err_tol)
+        C[i] = sol[0].copy()
 
-        #Use forward Euler to take a time step
-        Z = Z+dt*(J@(np.array(Z-C).flatten())).reshape((N, 3))
+        #Save the optimal weights
+        w[i] = sol[1].copy()
 
-        #Save the data
-        dataZ[i] = Z.copy()
-        dataC[i] = C.copy()
-        dataw[i] = sol[1].copy()
-
-        #Increment the solver parameters
-        t = t + dt
+        #print(i) #Use for tracking progress of the code when debugging.
 
     #Save the data
-    np.savez('SG_data.npz', data1 = dataZ, data2 = dataC, data3 = dataw)
+    np.savez('SG_data.npz', data1 = Z, data2 = C, data3 = w)
