@@ -53,8 +53,8 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
 
     #Use forward Euler to take an initial time step
     Z[1] = Z[0] + dt * (J @ (np.array(Z[0] - C[0]).flatten())).reshape((N, 3))
-    #w0 = aux.Rescale_weights(box, Z[1], w[0])[0] #Rescale the weights to generate an optimized initial guess
-    sol = aux.ot_centroids(D, Z[1], w[0], err_tol) #Solve the optimal transport problem
+    w0 = aux.Rescale_weights(box, Z[1], np.zeros(shape = (N,)))[0] #Rescale the weights to generate an optimized initial guess
+    sol = aux.ot_centroids(D, Z[1], w0, err_tol) #Solve the optimal transport problem
     C[1] = sol[0].copy() #Store the centroids
     w[1] = sol[1].copy() #Store the optimal weights
 
@@ -65,10 +65,10 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
         Z[i] = Z[i - 1] + (dt / 2) * (3 * J @ (np.array(Z[i - 1] - C[i - 1]).flatten()) - J @ (np.array(Z[i - 2] - C[i - 2]).flatten())).reshape((N, 3))
 
         #Rescale the weights to generate an optimized initial guess
-        #w0 = aux.Rescale_weights(box, Z[i], w[i - 1])[0]
+        w0 = aux.Rescale_weights(box, Z[i], np.zeros(shape = (N,)))[0]
 
         #Solve the optimal transport problem
-        sol = aux.ot_centroids(D, Z[i], w[i - 1], err_tol)
+        sol = aux.ot_centroids(D, Z[i], w0, err_tol)
         C[i] = sol[0].copy()
 
         #Save the optimal weights
