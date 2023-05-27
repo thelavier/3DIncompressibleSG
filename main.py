@@ -1,5 +1,6 @@
 import numpy as np
-import AuxFunctions as aux
+import optimaltransportsolver as ots
+import weightguess as wg
 
 def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, NumberofSteps):
     """
@@ -27,7 +28,7 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
     Ndt = NumberofSteps
 
     #Construct the domain
-    D = aux.make_domain(box)
+    D = ots.make_domain(box)
 
     #Compute the stepsize
     dt = tf/Ndt
@@ -46,15 +47,15 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
 
     #Construct the initial state
     Z[0] = Z0
-    w0 = aux.Rescale_weights(box, Z[0], np.zeros(shape = (N,)))[0] #Rescale the weights to generate an optimized initial guess
-    sol = aux.ot_centroids(D, Z[0], w0, err_tol) #Solve the optimal transport problem
+    w0 = wg.Rescale_weights(box, Z[0], np.zeros(shape = (N,)))[0] #Rescale the weights to generate an optimized initial guess
+    sol = ots.ot_solve(D, Z[0], w0, err_tol) #Solve the optimal transport problem
     C[0] = sol[0].copy() #Store the centroids
     w[0] = sol[1].copy() #Store the optimal weights
 
     #Use forward Euler to take an initial time step
     Z[1] = Z[0] + dt * (J @ (np.array(Z[0] - C[0]).flatten())).reshape((N, 3))
-    w0 = aux.Rescale_weights(box, Z[1], np.zeros(shape = (N,)))[0] #Rescale the weights to generate an optimized initial guess
-    sol = aux.ot_centroids(D, Z[1], w0, err_tol) #Solve the optimal transport problem
+    w0 = wg.Rescale_weights(box, Z[1], np.zeros(shape = (N,)))[0] #Rescale the weights to generate an optimized initial guess
+    sol = ots.ot_solve(D, Z[1], w0, err_tol) #Solve the optimal transport problem
     C[1] = sol[0].copy() #Store the centroids
     w[1] = sol[1].copy() #Store the optimal weights
 
@@ -65,10 +66,10 @@ def SGSolver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Numb
         Z[i] = Z[i - 1] + (dt / 2) * (3 * J @ (np.array(Z[i - 1] - C[i - 1]).flatten()) - J @ (np.array(Z[i - 2] - C[i - 2]).flatten())).reshape((N, 3))
 
         #Rescale the weights to generate an optimized initial guess
-        w0 = aux.Rescale_weights(box, Z[i], np.zeros(shape = (N,)))[0]
+        w0 = wg.Rescale_weights(box, Z[i], np.zeros(shape = (N,)))[0]
 
         #Solve the optimal transport problem
-        sol = aux.ot_centroids(D, Z[i], w0, err_tol)
+        sol = ots.ot_solve(D, Z[i], w0, err_tol)
         C[i] = sol[0].copy()
 
         #Save the optimal weights
