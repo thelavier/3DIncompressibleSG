@@ -1,18 +1,18 @@
 import numpy as np
 
 #Construct initial condition
-def create_initial(N, maxx, maxy, maxz, minx, miny, minz, Type):
+def create_initial(N, minx, miny, minz, maxx, maxy, maxz, Type):
     """
     Function that constructs an initial condition. Allows for different distributions on different axes.
 
     Inputs:
         N: The number of seeds
-        maxx: The maximum position in the x direction
-        maxy: The maximum position in the y direction
-        maxz: The maximum position in the z direction
         minx: The minimum position in the x direction
         miny: The minimum position in the y direction
         minz: The minimum position in the z direction
+        maxx: The maximum position in the x direction
+        maxy: The maximum position in the y direction
+        maxz: The maximum position in the z direction
         Type: Type of initial condition to generate
 
     Outputs:
@@ -29,6 +29,19 @@ def create_initial(N, maxx, maxy, maxz, minx, miny, minz, Type):
 
         # Generate random values for the third column
         col_2 = np.random.uniform( 2 * np.sin(col_0), 2 * np.sin(col_1), size=N)
+
+        # Create the matrix by concatenating the columns
+        matrix = np.column_stack((col_0, col_1, col_2))
+
+        return matrix
+
+    elif Type == 'uniform':
+        # Generate random values for the first and second columns
+        col_0 = np.random.uniform(minx, maxx, size=N)
+        col_1 = np.random.uniform(miny, maxy, size=N)
+
+        # Generate random values for the third column
+        col_2 = np.random.uniform(minz, maxz, size=N)
 
         # Create the matrix by concatenating the columns
         matrix = np.column_stack((col_0, col_1, col_2))
