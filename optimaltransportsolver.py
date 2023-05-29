@@ -19,21 +19,6 @@ def make_domain(box=[-2, -2, 0, 2, 2, 1]):
     domain.add_box([box[0], box[1], box[2]], [box[3], box[4], box[5]])
     return domain
 
-#Find the centroids of a Laguerre Diagram
-def laguerre_centroids(domain, Y, psi):
-    """
-    Function returning the centroids of a Laguerre diagram.
-
-    Inputs:
-        domain: The source domain of the optimal transport problem
-        Y: The seed positions 
-        psi: The corresponding weights for each seed
-
-    Outputs:
-        centroids: the centroids of the Laguerre diagram
-    """
-    return pysdot.PowerDiagram(Y, psi, domain).centroids()
-
 #Solve the Optimal transport problem and return the centroids and weights
 def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ):
     """
@@ -110,5 +95,5 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ):
     #print('Mass after Damped Newton', ot.pd.integrals()) #Print the mass of each cell
     #print('Difference in initial and final weights', np.linalg.norm(psi0-psi)) #Check how different the initial guess is from the optimal weights
 
-    return (laguerre_centroids(domain, Y, psi), psi)
+    return (ot.pd.centroids(), psi)
 
