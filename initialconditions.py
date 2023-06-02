@@ -100,7 +100,7 @@ def create_initial(N, minx, miny, minz, maxx, maxy, maxz, Type):
         matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
         # Construct matrix of perturbations
-        perturbation = np.random.uniform(0.8, 1, size = (N, 3))
+        perturbation = np.random.uniform(0.9, 1, size = (N, 3))
 
         return matrix * perturbation
 
@@ -120,7 +120,7 @@ def create_initial(N, minx, miny, minz, maxx, maxy, maxz, Type):
         matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
         # Construct matrix of perturbations
-        perturbation = np.random.uniform(0.8, 1, size = (N, 3))
+        perturbation = np.random.uniform(0.9, 1, size = (N, 3))
 
         return matrix * perturbation
 
