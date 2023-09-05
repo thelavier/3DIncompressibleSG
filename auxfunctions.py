@@ -25,3 +25,23 @@ def get_remapped_seeds(box, Z, PeriodicX, PeriodicY, PeriodicZ):
     Z = Z + np.dot(k, np.diag(bxDims))
 
     return Z
+
+def get_point_transform(point, matrix):
+    """
+    Inputs:
+        point: 
+        matrix:
+
+    Outputs:
+        transformed_point:
+    """
+    # Convert corner to a 1x3 matrix
+    point_matrix = np.array(point).reshape(3, 1)
+    
+    # Perform the transformation
+    transformed_point0 = np.dot(matrix, point_matrix)
+    
+    # Convert back to a list
+    transformed_point = transformed_point0.flatten().tolist()
+    
+    return transformed_point
