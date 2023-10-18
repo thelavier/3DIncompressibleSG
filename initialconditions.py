@@ -2,7 +2,7 @@ import numpy as np
 import auxfunctions as aux
 
 #Construct an artificial initial condition
-def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type):
+def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type, pert):
     """
     Function that constructs an initial condition. Allows for different distributions on different axes.
 
@@ -15,6 +15,7 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type):
         maxy: The maximum position in the y direction
         maxz: The maximum position in the z direction
         Type: Type of initial condition to generate
+        pert: A number between 2 and 0 indicating the strength of the perturbation, where 1 is no perturbation
 
     Outputs:
         matrix: The initial seeds positions
@@ -101,9 +102,9 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type):
         matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
         # Construct matrix of perturbations
-        perturbation = np.random.uniform(0.9, 1, size = (N, 3))
+        perturbation = np.random.uniform(pert, 1, size = (N, 3))
 
-        return matrix * perturbation
+        return matrix #* perturbation
 
     elif Type == 'lattice wsp' and N == croot ** 3:
         # Create coordinate arrays for each dimension
@@ -121,7 +122,7 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type):
         matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
         # Construct matrix of perturbations
-        perturbation = np.random.uniform(0.9, 1, size = (N, 3))
+        perturbation = np.random.uniform(pert, 1, size = (N, 3))
 
         return matrix * perturbation
 
@@ -136,7 +137,7 @@ def create_ss_initial(N, B, box, Type):
     Inputs:
         N: The number of seeds
         B: The steady state (a matrix)
-        box: 
+        box: The physical domain of the model
         Type: Type of perturbation to generate
 
     Outputs:
@@ -198,3 +199,44 @@ def create_ss_initial(N, B, box, Type):
             AssertionError("Please specify a valid type of perturbation.")
 
     return perturbed_geostrophic
+
+#Construct Cyclone Initial Condition
+def create_cyc_initial(N, box, A, pert):
+    """
+    Function that constructs the initial condition for an isolated cyclone with or without shear.
+    
+    Inputs:
+        N: The number of seeds
+        box: The fluid domain of the model. 
+        A: Either 0 or 0.1 indicating if there is a shear wind
+        pert: A number between 2 and 0 indicating the strength of the perturbation, where 1 is no perturbation
+
+    Outputs:
+        matrix: The initial seeds positions
+    """
+    # Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
+    croot = round(N ** (1 / 3))
+
+    # Create coordinate arrays for each dimension
+    col_0 = np.linspace(box[0], box[3], croot)
+    col_1 = np.linspace(box[1], box[4], croot)
+    col_2 = np.linspace(box[2], box[5], croot)
+
+    # Create a 3D lattice using meshgrid
+    Col_0, Col_1, Col_2 = np.meshgrid(col_0, col_1, col_2)
+
+    # Combine the coordinate arrays into a single matrix
+    matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
+
+    for i in range(N):
+        if matrix[i, 2] == 0:
+            matrix[i, 2] = aux.cyc_perturb_surface(matrix[i])
+        elif matrix[i, 2] == box[5]:
+            matrix[i, 2] = aux.cyc_perturb_lid(matrix[i], A)
+        else:
+            matrix[i, 2] = aux.cyc_pertub_body(matrix[i], A)
+
+    # Construct matrix of perturbations
+        perturbation = np.random.uniform(pert, 1, size = (N, 3))
+
+    return matrix * perturbation

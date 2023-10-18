@@ -49,7 +49,7 @@ def make_domain(box, PeriodicX, PeriodicY, PeriodicZ, a):
     return domain
 
 #Solve the Optimal transport problem and return the centroids and weights
-def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a):
+def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a, solver = 'Petsc', debug = False):
     """
     Function solving the optimal transport problem using the Damped Newton Method and returning the centroids of the optimal diagram.
 
@@ -63,13 +63,15 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a):
         PeriodicY: a boolian indicating if the boundaries are periodic in y
         PeriodicZ: a boolian indicating if the boundaries are periodic in z
         a: the replication parameter
+        solver: a string indicating whether we are using the Petsc linear solver or the Scipy linear solver
+        debug: a boolian indicating if the code is running in debug mode
 
     Outputs:
         centroids: The centroids of the optimal Laguerre diagram
         psi: The optimal weights
     """
     N = Y.shape[0] #Determine the number of seeds
-    ot = OptimalTransport(positions = Y, weights = psi0, masses = 64 * np.ones(N) / N, domain = domain, linear_solver= 'Petsc') #Establish the Optimal Transport problem
+    ot = OptimalTransport(positions = Y, weights = psi0, masses = domain.measure() / N * np.ones(N), domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
     ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
 
     if PeriodicX == False and PeriodicY == False and PeriodicZ == False:
@@ -115,15 +117,21 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a):
     else:
         AssertionError('Please specify the periodicity')
 
-    #print('Target masses before Damped Newton', ot.get_masses())
-    #print('Weights before Damped Newton', ot.get_weights())
-    #print('Mass before Damped Newton', ot.pd.integrals())
+    if debug == True:
+        print('Target masses before Damped Newton', ot.get_masses())
+        print('Weights before Damped Newton', ot.get_weights())
+        print('Mass before Damped Newton', ot.pd.integrals())
+    else:
+        pass
 
     ot.adjust_weights() #Use Damped Newton to find the optimal weight
     psi = ot.get_weights() #Extract the optimal weights from the solver
 
-    #print('Mass after Damped Newton', ot.pd.integrals()) #Print the mass of each cell
-    #print('Difference in initial and final weights', np.linalg.norm(psi0-psi)) #Check how different the initial guess is from the optimal weights
+    if debug == True:
+        print('Mass after Damped Newton', ot.pd.integrals()) #Print the mass of each cell
+        print('Difference in initial and final weights', np.linalg.norm(psi0-psi)) #Check how different the initial guess is from the optimal weights
+    else:
+        pass
 
     return (ot.pd.centroids(), psi)
 

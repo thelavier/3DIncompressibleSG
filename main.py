@@ -3,7 +3,7 @@ import optimaltransportsolver as ots
 import weightguess as wg
 import auxfunctions as aux
 
-def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY, PeriodicZ, a):
+def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY, PeriodicZ, a, solver = 'Petsc', debug = False):
     """
     Function solving the Semi-Geostrophic equations using the geometric method.
 
@@ -18,6 +18,8 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
         PeriodicY: a boolian indicating if the boundaries are periodic in y
         PeriodicZ: a boolian indicating if the boundaries are periodic in z
         a: the replication parameter
+        solver: a string indicating if the code is using the Petsc or the Scipy linear solver
+        debug: a boolian to put the code into debugging mode
 
         Note: The last two parameters are set up this way to integrate more easily with the animator, could be changed 
 
@@ -53,21 +55,27 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
     # Construct the initial state
     Z[0] = Z0
     w0 = wg.rescale_weights(box, Z[0], np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
-    sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a) # Solve the optimal transport problem
+    sol = ots.ot_solve(D, Z[0], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a, solver, debug) # Solve the optimal transport problem
     C[0] = sol[0].copy() # Store the centroids
     w[0] = sol[1].copy() # Store the optimal weights
 
-    print(0) # Use for tracking progress of the code when debugging
+    if debug == True:  
+        print(0) # Use for tracking progress of the code when debugging
+    else:
+        pass
 
     # Use forward Euler to take an initial time step
     Zint = Z[0] + dt * (J @ (np.array(Z[0] - C[0]).flatten())).reshape((N, 3))
     Z[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY, PeriodicZ)
     w0 = wg.rescale_weights(box, Z[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
-    sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a) # Solve the optimal transport problem
+    sol = ots.ot_solve(D, Z[1], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a, solver, debug) # Solve the optimal transport problem
     C[1] = sol[0].copy() # Store the centroids
     w[1] = sol[1].copy() # Store the optimal weights
 
-    print(1) # Use for tracking progress of the code when debugging 
+    if debug == True:
+        print(1) # Use for tracking progress of the code when debugging 
+    else:
+        pass
 
     # Apply Adams-Bashforth 2 to solve the ODE
     for i in range(2, Ndt):
@@ -80,13 +88,16 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
         w0 = wg.rescale_weights(box, Z[i], np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0]
 
         # Solve the optimal transport problem
-        sol = ots.ot_solve(D, Z[i], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a)
+        sol = ots.ot_solve(D, Z[i], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, a, solver, debug)
         C[i] = sol[0].copy()
 
         # Save the optimal weights
         w[i] = sol[1].copy()
 
-        print(i) # Use for tracking progress of the code when debugging
+        if debug == True:
+            print(i) # Use for tracking progress of the code when debugging
+        else:
+            pass
 
     # Save the data
     np.savez('SG_data.npz', data1 = Z, data2 = C, data3 = w)

@@ -45,3 +45,15 @@ def get_point_transform(point, matrix):
     transformed_point = transformed_point0.flatten().tolist()
     
     return transformed_point
+
+def cyc_pertub(x, y):
+    return (1 + (x/0.5)**2 + (y/0.5)**2)**(-(3/2)) - (1/2) * ((1 + ((x - 1)/0.5)**2 + (y/0.5)**2)**(-(3/2)) + (1 + ((x + 1)/0.5)**2 + (y/0.5)**2)**(-(3/2)))
+
+def cyc_perturb_surface(row):
+    return -(row[1]/(1 + row[1]**2)) - 0.12 * row[1] + 0.15 * cyc_pertub(row[0], row[1])
+
+def cyc_perturb_lid(row, A):
+    return -(1/2) * (row[1]/((1 + 0.45)**2 + row[1]**2) + row[1]/((1 - 0.45)**2 + row[1]**2)) - 0.12 * row[1] + 0.45*A - 0.6 * cyc_pertub(row[0] + 1, row[1])
+
+def cyc_pertub_body(row, A):
+    return -(1/2) * (row[1]/((1 + row[0])**2 + row[1]**2) + row[1]/((1 - row[0])**2 + row[1]**2)) - 0.12 * row[1] + A * row[0]
