@@ -1,10 +1,6 @@
 import numpy as np
-from pysdot import PowerDiagram
-from pysdot.domain_types import ConvexPolyhedraAssembly
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import pyvista as pv
-import imageio.v2 as iio
 
 #Animate the solution to the ODE
 def point_animator(data, ZorC, Dim, tf):
