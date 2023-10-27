@@ -120,8 +120,9 @@ def rescale_weights(bx, Z, psi, PeriodicX, PeriodicY, PeriodicZ):
         c_zl = [lambda_ * (min_Z_x + max_Z_x) / 2, lambda_ * (min_Z_y + max_Z_y) / 2]
         t = np.array(c_dom) - np.array(c_zl)
 
-        # Define weights NEED TO CORRECT THIS
-        w = (1 - lambda_) * np.square(np.linalg.norm(Z, axis = 1)) - 2 * np.dot(Z, t) - psi / lambda_
+        # Define weights
+        Zmod = np.column_stack((Z_x, Z_y))
+        w = (1 - lambda_) * np.square(np.linalg.norm(Zmod, axis = 1)) - 2 * np.dot(Zmod, t) - psi / lambda_
 
     elif PeriodicX == False and PeriodicY == True and PeriodicZ == False:
 
@@ -144,8 +145,9 @@ def rescale_weights(bx, Z, psi, PeriodicX, PeriodicY, PeriodicZ):
         c_zl = [lambda_ * (min_Z_x + max_Z_x) / 2, lambda_ * (min_Z_z + max_Z_z) / 2]
         t = np.array(c_dom) - np.array(c_zl)
 
-        # Define weights NEED TO CORRECT THIS
-        w = (1 - lambda_) * np.square(np.linalg.norm(Z, axis = 1)) - 2 * np.dot(Z, t) - psi / lambda_
+        # Define weights
+        Zmod = np.column_stack((Z_x, Z_z))
+        w = (1 - lambda_) * np.square(np.linalg.norm(Zmod, axis = 1)) - 2 * np.dot(Zmod, t) - psi / lambda_
 
     elif PeriodicX == True and PeriodicY == False and PeriodicZ == False:
 
@@ -168,8 +170,9 @@ def rescale_weights(bx, Z, psi, PeriodicX, PeriodicY, PeriodicZ):
         c_zl = [lambda_ * (min_Z_y + max_Z_y) / 2, lambda_ * (min_Z_z + max_Z_z) / 2]
         t = np.array(c_dom) - np.array(c_zl)
 
-        # Define weights NEED TO FIX THIS
-        w = (1 - lambda_) * np.square(np.linalg.norm(Z, axis = 1)) - 2 * np.dot(Z, t) - psi / lambda_
+        # Define weights
+        Zmod = np.column_stack((Z_y, Z_z))
+        w = (1 - lambda_) * np.square(np.linalg.norm(Zmod, axis = 1)) - 2 * np.dot(Zmod, t) - psi / lambda_
 
     elif PeriodicX == True and PeriodicY == True and PeriodicZ == True:
 

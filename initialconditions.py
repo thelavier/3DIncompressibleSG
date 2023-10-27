@@ -1,7 +1,9 @@
 import numpy as np
 import auxfunctions as aux
 
-#Construct an artificial initial condition
+# Construct an artificial initial condition
+
+
 def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type, pert):
     """
     Function that constructs an initial condition. Allows for different distributions on different axes.
@@ -21,7 +23,7 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type, pert)
         matrix: The initial seeds positions
     """
 
-    #Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
+    # Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
     croot = round(N ** (1 / 3))
 
     if Type == 'uniform wsp':
@@ -30,7 +32,7 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type, pert)
         col_1 = np.random.uniform(miny, maxy, size=N)
 
         # Generate random values for the third column
-        col_2 = np.random.uniform( 2 * np.sin(col_0), 2 * np.sin(col_1), size=N)
+        col_2 = np.random.uniform(2 * np.sin(col_0), 2 * np.sin(col_1), size=N)
 
         # Create the matrix by concatenating the columns
         matrix = np.column_stack((col_0, col_1, col_2))
@@ -64,17 +66,17 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type, pert)
         return matrix
 
     elif Type == 'linear':
-            # Generate  values for the first and second columns
-            col_0 = np.linspace(minx, maxx, N)
-            col_1 = np.linspace(miny, maxy, N)
-    
-            # Generate random values for the third column
-            col_2 = np.linspace(minz, maxz, N)
-    
-            # Create the matrix by concatenating the columns
-            matrix = np.column_stack((col_0, col_1, col_2))
-    
-            return matrix
+        # Generate  values for the first and second columns
+        col_0 = np.linspace(minx, maxx, N)
+        col_1 = np.linspace(miny, maxy, N)
+
+        # Generate random values for the third column
+        col_2 = np.linspace(minz, maxz, N)
+
+        # Create the matrix by concatenating the columns
+        matrix = np.column_stack((col_0, col_1, col_2))
+
+        return matrix
 
     elif Type == 'linear wsp':
         # Generate  values for the first and second columns
@@ -99,12 +101,13 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type, pert)
         Col_0, Col_1, Col_2 = np.meshgrid(col_0, col_1, col_2)
 
         # Combine the coordinate arrays into a single matrix
-        matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
+        matrix = np.column_stack(
+            (Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
         # Construct matrix of perturbations
-        perturbation = np.random.uniform(pert, 1, size = (N, 3))
+        perturbation = np.random.uniform(pert, 1, size=(N, 3))
 
-        return matrix #* perturbation
+        return matrix  # * perturbation
 
     elif Type == 'lattice wsp' and N == croot ** 3:
         # Create coordinate arrays for each dimension
@@ -119,17 +122,21 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type, pert)
         Col_2 = 2 * np.sin(Col_0) * np.sin(Col_1)
 
         # Combine the coordinate arrays into a single matrix
-        matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
+        matrix = np.column_stack(
+            (Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
         # Construct matrix of perturbations
-        perturbation = np.random.uniform(pert, 1, size = (N, 3))
+        perturbation = np.random.uniform(pert, 1, size=(N, 3))
 
         return matrix * perturbation
 
     else:
-        raise ValueError('Please specify the type of initial condition you want to use and make sure the number of seeds can generate a valid lattice.')
+        raise ValueError(
+            'Please specify the type of initial condition you want to use and make sure the number of seeds can generate a valid lattice.')
 
-#Construct an initial condition that is a perturbation of a steady state
+# Construct an initial condition that is a perturbation of a steady state
+
+
 def create_ss_initial(N, B, box, Type):
     """
     Function that constructs an initial condition. Allows for different distributions on different axes.
@@ -163,7 +170,7 @@ def create_ss_initial(N, B, box, Type):
 
     # Convert the list of vectors into a NumPy array
     transformed_corners = np.array(transformed_corners)
-    
+
     # Use NumPy functions to find the minimum and maximum values for each dimension
     min_values = np.min(transformed_corners, axis=0)
     max_values = np.max(transformed_corners, axis=0)
@@ -178,7 +185,8 @@ def create_ss_initial(N, B, box, Type):
     Col_0, Col_1, Col_2 = np.meshgrid(col_0, col_1, col_2)
 
     # Combine the coordinate arrays into a single matrix
-    unperturbed_geostrophic = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
+    unperturbed_geostrophic = np.column_stack(
+        (Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
     # Map the latice back to the fluid domain
     unperturbed_fluid = np.dot(unperturbed_geostrophic, A)
@@ -188,11 +196,13 @@ def create_ss_initial(N, B, box, Type):
         case "Thermal Sine":
             x_values = unperturbed_fluid[:, 0]
             y_values = unperturbed_fluid[:, 1]
-            perturbed_geostrophic = np.dot(unperturbed_fluid, B) + np.column_stack([np.zeros_like(x_values), np.zeros_like(y_values), np.sin(x_values) + np.sin(y_values)])
+            perturbed_geostrophic = np.dot(unperturbed_fluid, B) + np.column_stack(
+                [np.zeros_like(x_values), np.zeros_like(y_values), np.sin(x_values) + np.sin(y_values)])
         case "Thermal Gaussian":
             x_values = unperturbed_fluid[:, 0]
             y_values = unperturbed_fluid[:, 1]
-            perturbed_geostrophic = np.dot(unperturbed_fluid, B) + np.column_stack([np.zeros_like(x_values), np.zeros_like(y_values), 3 * np.exp(-(x_values ** 2) / 2) + 3 * np.exp(-(y_values ** 2) / 2)])
+            perturbed_geostrophic = np.dot(unperturbed_fluid, B) + np.column_stack([np.zeros_like(
+                x_values), np.zeros_like(y_values), 3 * np.exp(-(x_values ** 2) / 2) + 3 * np.exp(-(y_values ** 2) / 2)])
         case "None":
             perturbed_geostrophic = np.dot(unperturbed_fluid, B)
         case _:
@@ -200,43 +210,67 @@ def create_ss_initial(N, B, box, Type):
 
     return perturbed_geostrophic
 
-#Construct Cyclone Initial Condition
-def create_cyc_initial(N, box, A, pert):
+# Construct Cyclone Initial Condition
+
+
+def create_cyc_initial(NumCol, NumRow, box, A, PeriodicX, PeriodicY, PeriodicZ):
     """
     Function that constructs the initial condition for an isolated cyclone with or without shear.
-    
+
     Inputs:
         N: The number of seeds
-        box: The fluid domain of the model. 
+        box: The fluid domain of the model given as [xmin, ymin, zmin, xmax, ymax, zmax]
         A: Either 0 or 0.1 indicating if there is a shear wind
         pert: A number between 2 and 0 indicating the strength of the perturbation, where 1 is no perturbation
 
     Outputs:
         matrix: The initial seeds positions
     """
-    # Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
-    croot = round(N ** (1 / 3))
+    # Compute the square root of the number of seeds to later check that we can generate a valid lattice
+    croot = round(NumCol ** (1 / 2))
 
-    # Create coordinate arrays for each dimension
-    col_0 = np.linspace(box[0], box[3], croot)
-    col_1 = np.linspace(box[1], box[4], croot)
-    col_2 = np.linspace(box[2], box[5], croot)
+    if NumCol == croot ** 2:
+        # Create coordinate arrays for each dimension
+        col_0 = np.linspace(box[0], box[3], croot)
+        col_1 = np.linspace(box[1], box[4], croot)
 
-    # Create a 3D lattice using meshgrid
-    Col_0, Col_1, Col_2 = np.meshgrid(col_0, col_1, col_2)
+        # Create a 2D lattice using meshgrid
+        Col_0, Col_1 = np.meshgrid(col_0, col_1)
 
-    # Combine the coordinate arrays into a single matrix
-    matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
+        # Combine the coordinate arrays into a single matrix
+        matrix = np.column_stack((Col_0.flatten(), Col_1.flatten()))
+    else:
+        raise ValueError(
+            'Please provide a number of columns that generates a valid lattice')
 
-    for i in range(N):
-        if matrix[i, 2] == 0:
-            matrix[i, 2] = aux.cyc_perturb_surface(matrix[i])
-        elif matrix[i, 2] == box[5]:
-            matrix[i, 2] = aux.cyc_perturb_lid(matrix[i], A)
-        else:
-            matrix[i, 2] = aux.cyc_pertub_body(matrix[i], A)
+    # Generate a discritisation of the vertical direction and tiles of x and y
+    z = np.linspace(box[2], box[5], NumRow)
 
-    # Construct matrix of perturbations
-        perturbation = np.random.uniform(pert, 1, size = (N, 3))
+    # Initialize an array to store temperature values for each point
+    temperature_values = []
 
-    return matrix * perturbation
+    # Iterate through each point in the lattice
+    for point in matrix:
+        x, y = point  # Get x and y coordinates of the point
+        temperature_at_heights = []
+        for height in z:
+            if height == 0:
+                temperature = aux.cyc_perturb_surface(x, y, height)
+            elif height == box[5]:
+                temperature = aux.cyc_perturb_lid(x, y, height, A)  # Make sure A is defined
+            else:
+                temperature = aux.cyc_pertub_bulk(x, y, height, A)  # Make sure A is defined
+            temperature_at_heights.append(temperature)
+        xd = np.tile(x, NumRow)
+        yd = np.tile(y, NumRow)
+        temperature_values.append(np.column_stack((xd, yd, np.array(temperature_at_heights))))
+
+    # Assemble the initial condition
+    seeds = np.vstack(temperature_values)
+
+    # Create a perturbation matrix
+    random_matrix = np.random.uniform(0.85, 1, (NumCol * NumRow, 2))
+    ones_column = np.ones((NumCol * NumRow, 1))
+    perturbation = np.hstack((random_matrix, ones_column))
+
+    return aux.get_remapped_seeds(box, seeds * perturbation, PeriodicX, PeriodicY, PeriodicZ)
