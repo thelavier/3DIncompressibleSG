@@ -15,15 +15,33 @@ def get_remapped_seeds(box, Z, PeriodicX, PeriodicY, PeriodicZ):
         Z: the seeds remaped to be inside the fluid domain
     """
     
-    p = [PeriodicX, PeriodicY, PeriodicZ]
-
-    bxDims = [box[3] - box[0], box[4] - box[1], box[5] - box[2]] # Dimensions of the domain
-    Binv = np.diag(p) / np.array(bxDims) # Create a 3x3 matrix to normalize the seeds in the periodic domain
-
-    k = np.floor(-np.dot(Z, Binv) + 0.5 * np.ones((1, 3)))
-
-    Z = Z + np.dot(k, np.diag(bxDims))
-
+    if PeriodicX and PeriodicY and PeriodicZ:
+        # Wrap points in x, y, and z components
+        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
+        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
+        Z[:, 2] = (Z[:, 2] - box[2]) % (box[5] - box[2]) + box[2]
+    elif PeriodicX and PeriodicY and not PeriodicZ:
+        # Wrap points in the x and y component
+        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
+        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
+    elif PeriodicX and not PeriodicY and PeriodicZ:
+        # Wrap points in the x and z component
+        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
+        Z[:, 2] = (Z[:, 2] - box[2]) % (box[5] - box[2]) + box[2]
+    elif not PeriodicX and PeriodicY and PeriodicZ:
+        # Wrap points in the y and z component
+        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
+        Z[:, 2] = (Z[:, 2] - box[2]) % (box[5] - box[2]) + box[2]
+    elif PeriodicX and not PeriodicY and not PeriodicZ:
+        # Wrap points in the x component
+        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
+    elif not PeriodicX and PeriodicY and not PeriodicZ:
+        # Wrap points in the y component
+        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
+    elif not PeriodicX and not PeriodicY and PeriodicZ:
+        # Wrap points in the z component
+        Z[:, 2] = (Z[:, 2] - box[2]) % (box[5] - box[2]) + box[2]
+    
     return Z
 
 def get_point_transform(point, matrix):

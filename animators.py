@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import csv
 
 #Animate the solution to the ODE
 def point_animator(data, ZorC, Dim, box, tf):
@@ -22,12 +23,20 @@ def point_animator(data, ZorC, Dim, box, tf):
     global Z
     global C
 
-    # Load the data
-    loaded_data = np.load(data)
+    # Initialize lists to store the loaded data
+    seeds = []
+    centroids = []
 
-    # Access the individual arrays
-    Z = loaded_data['data1']
-    C = loaded_data['data2']
+    # Load the data from the CSV file
+    with open(data, mode='r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            seeds.append(eval(row['Seeds']))
+            centroids.append(eval(row['Centroids']))
+
+    # Convert the lists to NumPy arrays
+    Z = np.array(seeds)
+    C = np.array(centroids)
 
     # Find the max and min of the seeds so that the animation domains are appropriately sized
     Zxmax = float('-inf')
