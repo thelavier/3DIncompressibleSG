@@ -67,11 +67,8 @@ def get_point_transform(point, matrix):
 def cyc_pertub(x, y):
     return (1 + (x/0.5)**2 + (y/0.5)**2)**(-(3/2)) - (1/2) * ((1 + ((x - 1)/0.5)**2 + (y/0.5)**2)**(-(3/2)) + (1 + ((x + 1)/0.5)**2 + (y/0.5)**2)**(-(3/2)))
 
-def cyc_perturb_surface(x, y, z):
+def cyc_temp_surface(x, y, z):
     return -(y/(1 + y**2)) - 0.12 * y + 0.15 * cyc_pertub(x, y)
 
-def cyc_perturb_lid(x, y, z, A):
-    return -(1/2) * (y/((1 + z)**2 + y**2) + y/((1 - z)**2 + y**2)) - 0.12 * y + A * z - 0.6 * cyc_pertub(x + 1, y)
-
-def cyc_pertub_bulk(x, y, z, A):
-    return -(1/2) * (y/((1 + z)**2 + y**2) + y/((1 - z)**2 + y**2)) - 0.12 * y + A * z
+def cyc_temp_lid(x, y, z, A):
+    return -(1/2) * (y/((1 + z)**2 + y**2) + y/((1 - z)**2 + y**2)) - 0.12 * y + A * z - 0.6 * cyc_pertub(x + 1, y) + 1.29

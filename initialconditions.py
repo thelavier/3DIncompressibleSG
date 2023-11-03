@@ -107,7 +107,7 @@ def create_artificial_initial(N, minx, miny, minz, maxx, maxy, maxz, Type, pert)
         # Construct matrix of perturbations
         perturbation = np.random.uniform(pert, 1, size=(N, 3))
 
-        return matrix  # * perturbation
+        return matrix * perturbation
 
     elif Type == 'lattice wsp' and N == croot ** 3:
         # Create coordinate arrays for each dimension
@@ -243,33 +243,23 @@ def create_cyc_initial(NumCol, NumRow, box, A, PeriodicX, PeriodicY, PeriodicZ):
         raise ValueError(
             'Please provide a number of columns that generates a valid lattice')
 
-    # Generate a discritisation of the vertical direction and tiles of x and y
-    z = np.linspace(box[2], box[5], NumRow)
-
     # Initialize an array to store temperature values for each point
     temperature_values = []
 
     # Iterate through each point in the lattice
     for point in matrix:
         x, y = point  # Get x and y coordinates of the point
-        temperature_at_heights = []
-        for height in z:
-            if height == 0:
-                temperature = aux.cyc_perturb_surface(x, y, height)
-            elif height == box[5]:
-                temperature = aux.cyc_perturb_lid(x, y, height, A)  # Make sure A is defined
-            else:
-                temperature = aux.cyc_pertub_bulk(x, y, height, A)  # Make sure A is defined
-            temperature_at_heights.append(temperature)
+        temperature_at_heights = np.linspace(aux.cyc_temp_surface(x, y, 0), aux.cyc_temp_lid(x, y, box[5], A), NumRow)
         xd = np.tile(x, NumRow)
         yd = np.tile(y, NumRow)
         temperature_values.append(np.column_stack((xd, yd, np.array(temperature_at_heights))))
+
 
     # Assemble the initial condition
     seeds = np.vstack(temperature_values)
 
     # Create a perturbation matrix
-    random_matrix = np.random.uniform(0.85, 1, (NumCol * NumRow, 2))
+    random_matrix = np.random.uniform(0.9, 1, (NumCol * NumRow, 2))
     ones_column = np.ones((NumCol * NumRow, 1))
     perturbation = np.hstack((random_matrix, ones_column))
 
