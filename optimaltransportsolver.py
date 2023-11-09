@@ -137,7 +137,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, sol
         AssertionError('Please specify the periodicity')
 
     if debug == True:
-        premass = ot.get_masses()
+        premass = ot.get_masses() # Extract the target masses
     #    print('Target masses before Damped Newton', premass)
     #    print('Weights before Damped Newton', ot.get_weights())
     #    print('Mass before Damped Newton', ot.pd.integrals())
@@ -145,15 +145,15 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, sol
     else:
         pass
 
-    ot.adjust_weights() #Use Damped Newton to find the optimal weight
-    psi = ot.get_weights() #Extract the optimal weights from the solver
+    ot.adjust_weights() # Use Damped Newton to find the optimal weight
+    psi = ot.get_weights() # Extract the optimal weights from the solver
+    postmass = ot.pd.integrals() # Extract the mass of the cells after Damped Newton
 
     if debug == True:
-        postmass = ot.pd.integrals()
     #    print('Mass after Damped Newton', postmass, 'Total:', sum(postmass)) #Print the mass of each cell
         print('Difference in target and final mass', np.linalg.norm(premass-postmass)) #Check how different the final mass is from the target mass
     else:
         pass
 
-    return (ot.pd.centroids(), psi)
+    return ot.pd.centroids(), psi, postmass
 

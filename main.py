@@ -41,7 +41,7 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
 
     # Open the CSV file for writing and create the header
     with open('./data/SG_data.csv', 'w', newline='') as csvfile:
-        fieldnames = ['time_step', 'Seeds', 'Centroids', 'Weights']
+        fieldnames = ['time_step', 'Seeds', 'Centroids', 'Weights', 'Mass']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader() 
 
@@ -67,10 +67,11 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
     w0 = wg.rescale_weights(box, Z0, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
     sol = ots.ot_solve(D, Z0, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
 
-    # Create a sliding window buffer for Z, C, and w
+    # Create a sliding window buffer for Z, C, w, and M
     Z_window = [Z0.copy(), Z0.copy(), Z0.copy()]
     C_window = [sol[0].copy(), sol[0].copy(), sol[0].copy()]
     w_window = [sol[1].copy(), sol[1].copy(), sol[1].copy()]
+    m_window = [sol[2].copy(), sol[2].copy(), sol[2].copy()]
 
     if debug == True:
         print("Time Step", 1) # Use for tracking progress of the code when debugging.
@@ -84,22 +85,25 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
 
     C_window[1] = sol[0].copy() # Store the centroids
     w_window[1] = sol[1].copy() # Store the optimal weights
+    m_window[1] = sol[2].copy() # Store the mass of each cell
 
     # Save the data for time step 0 and 1
     with open('./data/SG_data.csv', 'a', newline='') as csvfile:
-        fieldnames = ['time_step', 'Seeds', 'Centroids', 'Weights']
+        fieldnames = ['time_step', 'Seeds', 'Centroids', 'Weights', 'Mass']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writerow({
             'time_step': 0,
             'Seeds': Z_window[0].tolist(),
             'Centroids': C_window[0].tolist(),
             'Weights': w_window[0].tolist(),
+            'Mass': m_window[0].tolist(),
         })
         writer.writerow({
             'time_step': 1,
             'Seeds': Z_window[1].tolist(),
             'Centroids': C_window[1].tolist(),
             'Weights': w_window[1].tolist(),
+            'Mass': m_window[1].tolist(),
         })
 
     # Apply Adams-Bashforth 2 to solve the ODE
@@ -121,14 +125,16 @@ def SG_solver(Box, InitialSeeds, NumberofSeeds, PercentTolerance, FinalTime, Num
         # Save the centroids and optimal weights
         C_window[i % 3] = sol[0].copy()
         w_window[i % 3] = sol[1].copy()
+        m_window[i % 3] = sol[2].copy()
 
         # Save the data for Z, C, and w continuously
         with open('./data/SG_data.csv', 'a', newline='') as csvfile:
-            fieldnames = ['time_step', 'Seeds', 'Centroids', 'Weights']
+            fieldnames = ['time_step', 'Seeds', 'Centroids', 'Weights', 'Mass']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writerow({
                 'time_step': i,
                 'Seeds': Z_window[i % 3].tolist(),
                 'Centroids': C_window[i % 3].tolist(),
                 'Weights': w_window[i % 3].tolist(),
+                'Mass': m_window[i % 3].tolist(),
             })
