@@ -1,4 +1,3 @@
-import sys
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -6,8 +5,7 @@ import numpy as np
 from ott.geometry import pointcloud
 from ott.core.sinkhorn import sinkhorn
 
-import csv
-csv.field_size_limit(min(sys.maxsize, 2147483646))
+import auxfunctions as aux
 
 @jax.jit
 def solve_ott(a, b, x, y, epsilon):
@@ -25,58 +23,7 @@ def solve_ott(a, b, x, y, epsilon):
     f, g = f - np.mean(f), g + np.mean(f)
     return f, g
 
-def load_data(data):
-
-    # Initialize lists to store the loaded data
-    seeds = []
-    centroids = []
-    weights = []
-    mass = []
-
-    # Load the data from the CSV file
-    with open(data, mode='r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            seeds.append(eval(row['Seeds']))
-            centroids.append(eval(row['Centroids']))
-            weights.append(eval(row['Weights']))
-            mass.append(eval(row['Mass']))
-
-    # Access the individual arrays
-    Z = np.array(seeds)
-    C = np.array(centroids)
-    W = np.array(weights)
-    M = np.array(mass)
-
-    return Z, C, W, M
-
-def MerVel(Z, C, W):
-
-    # Physical Constants
-    f = 1e-4
-
-    # Compute Meridonal Velocities
-    MVel = [[0] * len(W[0]) for _ in range(len(W))]
-    for i in range(len(W)):
-        for j in range(len(W[0])):
-            MVel[i][j] = f * (Z[i][j][0] - C[i][j][0])
-
-    return MVel
-
-def ZonVel(Z, C, W):
-
-    # Physical Constants
-    f = 1e-4
-
-    # Compute Zonal Velocities
-    ZVel = [[0] * len(W[0]) for _ in range(len(W))]
-    for i in range(len(W)):
-        for j in range(len(W[0])):
-            ZVel[i][j] = f * ( - Z[i][j][1] + C[i][j][1])
-        
-    return ZVel
-
-def Sqrt_Sinkhorn_Loss(Z, M, ZRef, MRef, epsilon, tf, comptime):
+def Sqrt_Sinkhorn_Loss(Z, M, ZRef, MRef, epsilon, tf, comptime, box):
 
     if comptime > tf:
         raise ValueError('Please select a valid comparison time.')
@@ -86,6 +33,12 @@ def Sqrt_Sinkhorn_Loss(Z, M, ZRef, MRef, epsilon, tf, comptime):
     NdtRef = len(ZRef)
     ind = int(round(( Ndt / tf ) * comptime))
     indRef = int(round(( NdtRef / tf ) * comptime))
+
+    # Compute the normalization
+    Lx = box[3] - box[0]
+    Ly = box[4] - box[1]
+    Lz = box[5] - box[2]
+    normalization = 1 / np.sqrt(np.abs(Lx * Ly* Lz) * np.max(np.max(np.abs(ZRef[indRef]), axis=1)) ** 2)
 
     # Compute the square root of the sinkhorn loss
 
@@ -97,9 +50,9 @@ def Sqrt_Sinkhorn_Loss(Z, M, ZRef, MRef, epsilon, tf, comptime):
 
     sol = np.sqrt(np.dot(M[ind], f - p1) + np.dot(MRef[indRef], g - q1))
 
-    return sol
+    return sol / normalization
 
-def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime):
+def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime, box):
 
     if comptime > tf:
         raise ValueError('Please select a valid comparison time.')
@@ -110,25 +63,31 @@ def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime):
     ind = int(round(( Ndt / tf ) * comptime))
     indRef = int(round(( NdtRef / tf ) * comptime))
 
+    # Compute the normalization
+    Lx = box[3] - box[0]
+    Ly = box[4] - box[1]
+    Lz = box[5] - box[2]
+    normalization = 1 / np.sqrt(np.abs(Lx * Ly* Lz) * np.max(np.max(np.abs(ZRef[indRef]), axis=1)) ** 2)
+
     # Check that Z and ZRef are the same shape
-    if np.shape(Z[ind]) == np.shape(ZRef[indRef]):
-        diff = np.linalg.norm(Z[ind] - ZRef[indRef], axis = 1) ** 2
-        sol = np.sqrt(np.dot(MRef[indRef], diff))
-        return sol
-    else:
+    if np.shape(Z[ind]) != np.shape(ZRef[indRef]):
         raise ValueError('Please provide a valid comparison')
+    
+    diff = np.linalg.norm(Z[ind] - ZRef[indRef], axis = 1) ** 2
+    sol = np.sqrt(np.dot(MRef[indRef], diff))
+    return sol / normalization
     
 def Root_Mean_Squared_Velocity(Z, C, W, Type):
 
     results = []
 
     if Type == 'Meridional':
-        Vel = np.array(MerVel(Z, C, W))
+        Vel = np.array(aux.MerVel(Z, C, W))
     elif Type == 'Zonal':
-        Vel = np.array(ZonVel(Z, C, W))
+        Vel = np.array(aux.ZonVel(Z, C, W))
     elif Type == 'Total':
-        MVel = np.array(MerVel(Z, C, W))
-        ZVel = np.array(ZonVel(Z, C, W))
+        MVel = np.array(aux.MerVel(Z, C, W))
+        ZVel = np.array(aux.ZonVel(Z, C, W))
         Vel = np.dstack((ZVel, MVel))
     else:
         raise ValueError('Please specify which velocity you want to investigate. The options are Meriodonal, Zonal, or Total')
