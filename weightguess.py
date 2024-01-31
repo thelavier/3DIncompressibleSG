@@ -16,25 +16,32 @@ def rescale_weights(bx, Z, psi, PeriodicX, PeriodicY, PeriodicZ):
     if PeriodicX and PeriodicY and PeriodicZ:
         return psi, 0, 0
 
-    # Initialize variables
     min_Z, max_Z = np.min(Z, axis=0), np.max(Z, axis=0)
-    lambda_ = np.inf
-    translation = []
+    lambda_vals = []
 
-    # Calculate scaling and translation for non-periodic dimensions
-    for i, (periodic, min_b, max_b) in enumerate(zip([PeriodicX, PeriodicY, PeriodicZ], bx[::2], bx[1::2])):
+    # Calculate lambda_ for each non-periodic dimension
+    for i, periodic in enumerate([PeriodicX, PeriodicY, PeriodicZ]):
         if not periodic:
+            min_b = bx[i]
+            max_b = bx[i + 3]
             lambda_dim = (max_b - min_b) / (max_Z[i] - min_Z[i])
-            lambda_ = min(lambda_, lambda_dim * (1 - 1e-2))
-            center_dom = (max_b + min_b) / 2
+            lambda_vals.append(lambda_dim)
+
+    # Choose the minimum lambda_ and apply a small reduction
+    lambda_ = min(lambda_vals) * (1 - 1e-2) if lambda_vals else np.inf
+
+    # Calculate translation vector for non-periodic dimensions
+    translation = []
+    for i, periodic in enumerate([PeriodicX, PeriodicY, PeriodicZ]):
+        if not periodic:
+            center_dom = (bx[i + 3] + bx[i]) / 2
             center_rescaled = lambda_ * (min_Z[i] + max_Z[i]) / 2
             translation.append(center_dom - center_rescaled)
         else:
             translation.append(0)
+    t = np.array(translation)[~np.array([PeriodicX, PeriodicY, PeriodicZ])]
 
-    t = np.array(translation)
-
-    # Define weights
+    # Calculate weights
     Z_mod = Z[:, ~np.array([PeriodicX, PeriodicY, PeriodicZ])]
     w = (1 - lambda_) * np.square(np.linalg.norm(Z_mod, axis=1)) - 2 * np.dot(Z_mod, t) - psi / lambda_
 
