@@ -5,34 +5,32 @@ import auxfunctions as aux
 import msgpack
 import os
 
-def SG_solver(Box, InitialSeeds, PercentTolerance, FinalTime, NumberofSteps, PeriodicX, PeriodicY, PeriodicZ, solver = 'Petsc', debug = False):
+def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, PeriodicZ, solver = 'Petsc', debug = False):
     """
-    Function solving the Semi-Geostrophic equations using the geometric method.
+    Solves the Semi-Geostrophic equations using the geometric method.
 
-    Inputs:
-        box: list or tuple defining domain [xmin, ymin, zmin, xmax, ymax, zmax]
-        InitialSeeds: The intial seed positions 
-        PercentTolerance: Percent tolerance, ex. 1 means 1% tolerance
-        FinalTime: The end point of the simulation
-        NumberofSteps: The number of steps to take to get from t=0 to t=time final
-        PeriodicX: a boolian indicating if the boundaries are periodic in x 
-        PeriodicY: a boolian indicating if the boundaries are periodic in y
-        PeriodicZ: a boolian indicating if the boundaries are periodic in z
-        solver: a string indicating if the code is using the Petsc or the Scipy linear solver
-        debug: a boolian to put the code into debugging mode
+    Parameters:
+    - box (list or tuple): Domain bounds [xmin, ymin, zmin, xmax, ymax, zmax].
+    - Z0 (array): Initial seed positions.
+    - PercentTolerance (float): Percentage tolerance (e.g., 1 for 1% tolerance).
+    - FinalTime (float): Endpoint of the simulation time.
+    - Ndt (int): Number of steps from t=0 to FinalTime.
+    - PeriodicX, PeriodicY, PeriodicZ (bool): Indicates if the boundaries are periodic in x, y, z respectively.
+    - solver (str): Indicates the linear solver to use ('Petsc' or 'Scipy').
+    - debug (bool): Enables debugging mode.
 
-        Note: The last two parameters are set up this way to integrate more easily with the animator, could be changed 
-
-    Outputs:
-        data: Outputs a saved datafile that contains the seed positions, centroid positions, and optimal weights at every timestep
+    Returns:
+    - None: Saves the seed positions, centroid positions, and optimal weights at every timestep in a MessagePack file.
     """
-    # Bring parameters into the function
-    box = Box
-    Z0 = InitialSeeds
-    N = int(len(Z0))
-    per_tol = PercentTolerance
-    tf = FinalTime
-    Ndt = NumberofSteps
+    # Setup and initialization
+    N = len(Z0)
+    dt = FinalTime / Ndt
+    err_tol = (PercentTolerance / 100) * (ots.make_domain(box, PeriodicX, PeriodicY, PeriodicZ).measure() / N)
+    D = ots.make_domain(box, PeriodicX, PeriodicY, PeriodicZ) # Construct the domain
+
+    # Setup extended J matrix for RHS of the ODE
+    P = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
+    J = np.kron(np.eye(N, dtype=int), P)
 
     # Delete the MessagePack file if it exists to start fresh
     if os.path.exists('./data/SG_data.msgpack'):
@@ -50,23 +48,9 @@ def SG_solver(Box, InitialSeeds, PercentTolerance, FinalTime, NumberofSteps, Per
 
     # Open the MessagePack file for writing and write the header
     with open('./data/SG_data.msgpack', 'ab') as msgpackfile:
-        # Construct the domain
-        D = ots.make_domain(box, PeriodicX, PeriodicY, PeriodicZ)
-
-        # Compute the stepsize
-        dt = tf/Ndt
-
-        # Setup extended J matrix for RHS of the ODE
-        P = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
-        J = np.kron(np.eye(N, dtype=int), P)
-
-        # Build the relative error tollereance 
-        err_tol = ( per_tol / 100 ) * (D.measure() / N) 
-
-        if debug == True:
-            print("Time Step", 0) # Use for tracking progress of the code when debugging.
-        else:
-            pass
+        
+        if debug:
+            print("Time Step 0") # Use for tracking progress of the code when debugging.
 
         # Construct the initial state
         w0 = wg.rescale_weights(box, Z0, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
@@ -78,8 +62,8 @@ def SG_solver(Box, InitialSeeds, PercentTolerance, FinalTime, NumberofSteps, Per
         w_window = [sol[1].copy(), sol[1].copy(), sol[1].copy()]
         m_window = [sol[2].copy(), sol[2].copy(), sol[2].copy()]
 
-        if debug == True:
-            print("Time Step", 1) # Use for tracking progress of the code when debugging.
+        if debug:
+            print("Time Step 1") # Use for tracking progress of the code when debugging.
 
         # Use forward Euler to take an initial time step
         Zint = Z_window[0] + dt * (J @ (np.array(Z_window[0] - C_window[0]).flatten())).reshape((N, 3))
@@ -112,8 +96,8 @@ def SG_solver(Box, InitialSeeds, PercentTolerance, FinalTime, NumberofSteps, Per
         # Apply Adams-Bashforth 2 to solve the ODE
         for i in range(2, Ndt):
 
-            if debug == True:
-                print(i) # Use for tracking progress of the code when debugging
+            if debug:
+                print(f"Time Step {i}") # Use for tracking progress of the code when debugging
 
             # Use Adams-Bashforth to take a time step
             Zint = Z_window[(i - 1) % 3] + (dt / 2) * (3 * J @ (np.array(Z_window[(i - 1) % 3] - C_window[(i - 1) % 3]).flatten()) - J @ (np.array(Z_window[(i - 2) % 3] - C_window[(i - 2) % 3]).flatten())).reshape((N, 3))
