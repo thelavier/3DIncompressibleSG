@@ -3,58 +3,50 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import auxfunctions as aux
 
-#Animate the solution to the ODE
 def point_animator(data, ZorC, Dim, box, tf):
     """
-    Function animating the data produced by the optimal transport solver.
+    Animates the solution to the ODE using data from the optimal transport solver.
 
-    Inputs:
-        data: The data stored by the solver, must be a string
-        ZorC: Decide if you want to animate the seeds or the weights, must also be a string
-        Dim: Decide if you want to animate the seeds in 2D or 3D, must be a string
-        box: list or tuple defining domain [xmin, ymin, zmin, xmax, ymax, zmax]
-        tf: The 'Final time' for the solver, used to ensure that the frames and the animation interval are not jarring
+    Parameters:
+        data (str): File name containing the data.
+        ZorC (str): 'Z' to animate seeds, 'C' to animate weights.
+        Dim (str): '2D' or '3D' for the animation dimension.
+        box (list or tuple): Domain definition [xmin, ymin, zmin, xmax, ymax, zmax].
+        tf (int): Final time for the solver to determine frame rate.
 
-    Outputs:
-        animation: An animation of the seeds or the centroids depending on user choice
+    Returns:
+        Matplotlib animation: An animation of the seeds or centroids.
     """
-    # Set up the animation 
+    # Configure animation settings
     plt.rcParams['animation.ffmpeg_path'] = 'ffmpeg'
-    global Z
-    global C
 
-    # Load the data from the file
+    # Load data
     Z, C, _, _ = aux.load_data(data)
 
-    # Find the max and min of the seeds so that the animation domains are appropriately sized
-    Zxmax = float('-inf')
-    Zxmin = float('inf')
-    Zymax = float('-inf')
-    Zymin = float('inf')
-    Zzmax = float('-inf')
-    Zzmin = float('inf')
+    # Determine animation bounds
+    Z_bounds = get_animation_bounds(Z) if ZorC == 'Z' else box
+    C_bounds = get_animation_bounds(C) if ZorC == 'C' else box
 
-    for frame in Z:
-        # Find min and maxs in the frame
-        Zxmin_in_frame = np.min(frame[:, 0])
-        Zxmax_in_frame = np.max(frame[:, 0])
-        Zymin_in_frame = np.min(frame[:, 1])
-        Zymax_in_frame = np.max(frame[:, 1])
-        Zzmin_in_frame = np.min(frame[:, 2])
-        Zzmax_in_frame = np.max(frame[:, 2])
+    # Initialize plot
+    fig, ax = initialize_plot(Dim)
 
-        # Update the min and max values 
-        Zxmin = min(Zxmin, Zxmin_in_frame)
-        Zxmax = max(Zxmax, Zxmax_in_frame)
-        Zymin = min(Zymin, Zymin_in_frame)
-        Zymax = max(Zymax, Zymax_in_frame)
-        Zzmin = min(Zzmin, Zzmin_in_frame)
-        Zzmax = max(Zzmax, Zzmax_in_frame)
+    # Create and save the animation
+    ani = create_animation(fig, ax, Z, C, ZorC, Dim, Z_bounds, C_bounds, tf)
+    save_animation(ani, ZorC, Dim)
 
-    # Establish Animation parameters
-    Ndt = len(Z)
+def get_animation_bounds(frames):
+    """
+    Calculate the bounds for the animation based on the data frames.
+    """
+    all_points = np.concatenate(frames)
+    min_bounds = np.min(all_points, axis=0)
+    max_bounds = np.max(all_points, axis=0)
+    return [min_bounds[0], min_bounds[1], min_bounds[2], max_bounds[0], max_bounds[1], max_bounds[2]]
 
-    # Create the plot
+def initialize_plot(Dim):
+    """
+    Initialize the plot based on the specified dimension.
+    """
     fig = plt.figure()
     fig.set_size_inches(10, 10, True)
     if Dim == '2D':
@@ -62,75 +54,58 @@ def point_animator(data, ZorC, Dim, box, tf):
     elif Dim == '3D':
         ax = fig.add_subplot(projection='3d')
     else:
-        raise AssertionError('Please specify the dimension of the animation!')
+        raise ValueError('Invalid dimension specified. Please choose "2D" or "3D".')
+    return fig, ax
 
+def create_animation(fig, ax, Z, C, ZorC, Dim, Z_bounds, C_bounds, tf):
+    """
+    Create the animation object.
+    """
+    Ndt = len(Z)
+    update_func = get_update_function(ax, Z, C, ZorC, Dim, Z_bounds, C_bounds)
+    return animation.FuncAnimation(fig, update_func, frames=Ndt, interval=tf)
+
+def get_update_function(ax, Z, C, ZorC, Dim, Z_bounds, C_bounds):
+    """
+    Returns the appropriate update function for the animation.
+    """
     def update(i):
-        global Z
-        global C
-
-        # Update the plot
+        ax.cla()
         if ZorC == 'Z':
-            if Dim == '2D':
-                ax.cla()
-                ax.scatter(Z[i][:,0], Z[i][:,1], c = Z[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
-                ax.set_xlim([Zxmin, Zxmax])
-                ax.set_ylim([Zymin, Zymax])
-                ax.set_xlabel('X')
-                ax.set_ylabel('Y')
-            elif Dim == '3D':
-                ax.cla()
-                ax.scatter(Z[i][:,0], Z[i][:,1], Z[i][:,2], color = 'blue', s = 8)
-                ax.set_xlim([Zxmin, Zxmax])
-                ax.set_ylim([Zymin, Zymax])
-                ax.set_zlim([Zzmin, Zzmax])
-                ax.set_xlabel('X')
-                ax.set_ylabel('Y')
-                ax.set_zlabel('Z')
-            else:
-                raise AssertionError('Please specify the dimension of the animation!')
+            plot_data(ax, Z[i], Dim, Z_bounds)
         elif ZorC == 'C':
-            if Dim == '2D':
-                ax.cla()
-                ax.scatter(C[i][:,0], C[i][:,1], c = C[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
-                ax.set_xlim([box[0], box[3]])
-                ax.set_ylim([box[1], box[4]])
-                ax.set_xlabel('X')
-                ax.set_ylabel('Y')
-            elif Dim == '3D':
-                ax.cla()
-                ax.scatter(C[i][:,0], C[i][:,1], C[i][:,2], color = 'red', s = 8)
-                ax.set_xlim([box[0], box[3]])
-                ax.set_ylim([box[1], box[4]])
-                ax.set_zlim([box[2], box[5]])
-                ax.set_xlabel('X')
-                ax.set_ylabel('Y')
-                ax.set_zlabel('Z')
-            else:
-                raise AssertionError('Please specify the dimension of the animation!')
+            plot_data(ax, C[i], Dim, C_bounds)
         else:
-            raise AssertionError('Please specify if you want to animate the centroids or the seeds!')
+            raise ValueError('Invalid ZorC value. Choose "Z" for seeds or "C" for centroids.')
 
-    if ZorC == 'Z':
-        if Dim == '2D':
-            ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-            FFwriter = animation.FFMpegWriter(fps = 30)
-            ani.save('./animations/SG_Seeds_2D.gif', writer = FFwriter, dpi = 100)
-        elif Dim == '3D':
-            ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-            FFwriter = animation.FFMpegWriter(fps = 30)
-            ani.save('./animations/SG_Seeds_3D.gif', writer = FFwriter, dpi = 100)
-        else:
-            raise AssertionError('Please specify the dimension of the animation!')
-    elif ZorC == 'C':
-        if Dim == '2D':
-            ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-            FFwriter = animation.FFMpegWriter(fps = 30)
-            ani.save('./animations/SG_Centroids_2D.gif', writer = FFwriter, dpi = 100)
-        elif Dim == '3D':
-            ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-            FFwriter = animation.FFMpegWriter(fps = 30)
-            ani.save('./animations/SG_Centroids_3D.gif', writer = FFwriter, dpi = 100)
-        else:
-            raise AssertionError('Please specify the dimension of the animation!')
-    else:
-        raise AssertionError('Please specify if you want to animate the centroids or the seeds!')
+    return update
+
+def plot_data(ax, data, Dim, bounds):
+    """
+    Plot the data on the given axis based on the dimension.
+    """
+    if Dim == '2D':
+        ax.scatter(data[:,0], data[:,1], c=data[:,2], cmap='jet', edgecolor='none', s=8)
+        ax.set_xlim([bounds[0], bounds[3]])
+        ax.set_ylim([bounds[1], bounds[4]])
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+    elif Dim == '3D':
+        ax.scatter(data[:,0], data[:,1], data[:,2], color='blue', s=8)
+        ax.set_xlim([bounds[0], bounds[3]])
+        ax.set_ylim([bounds[1], bounds[4]])
+        ax.set_zlim([bounds[2], bounds[5]])
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+
+def save_animation(ani, ZorC, Dim):
+    """
+    Save the animation to a file.
+    """
+    filename = f'./animations/SG_{ZorC}_{Dim}.gif'
+    FFwriter = animation.FFMpegWriter(fps=30)
+    ani.save(filename, writer=FFwriter, dpi=100)
+
+# Example usage
+# point_animator('data_file', 'Z', '2D', [0, 0, 0, 10, 10, 10], 1000)

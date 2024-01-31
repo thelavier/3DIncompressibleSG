@@ -2,107 +2,88 @@ import numpy as np
 import msgpack
 
 def load_data(data):
-    # Initialize lists to store the loaded data
-    seeds = []
-    centroids = []
-    weights = []
-    mass = []
+    """
+    Loads data from a MessagePack file and returns numpy arrays of seeds, centroids, weights, and mass.
 
-    # Load the data from the MessagePack file
+    Parameters:
+        data (str): Filename of the MessagePack file to load.
+
+    Returns:
+        tuple: Four numpy arrays containing seeds, centroids, weights, and mass data.
+    """
+    # Initialize lists for data
+    seeds, centroids, weights, mass = [], [], [], []
+
+    # Load data from file
     with open(data, mode='rb') as msgpackfile:
-
-        # Load the remaining data
         unpacker = msgpack.Unpacker(msgpackfile, raw=False)
         for row in unpacker:
-            seeds.append(np.array(row.get('Seeds', []), dtype=object).astype(np.float64))
-            centroids.append(np.array(row.get('Centroids', []), dtype=object).astype(np.float64))
-            weights.append(np.array(row.get('Weights', []), dtype=object).astype(np.float64))
-            mass.append(np.array(row.get('Mass', []), dtype=object).astype(np.float64))
+            seeds.append(np.array(row.get('Seeds', []), dtype=np.float64))
+            centroids.append(np.array(row.get('Centroids', []), dtype=np.float64))
+            weights.append(np.array(row.get('Weights', []), dtype=np.float64))
+            mass.append(np.array(row.get('Mass', []), dtype=np.float64))
 
-    # Exclude the first entry from each list
-    seeds = seeds[1:]
-    centroids = centroids[1:]
-    weights = weights[1:]
-    mass = mass[1:]
-
-    # Access the individual arrays
-    Z = np.array(seeds)
-    C = np.array(centroids)
-    W = np.array(weights)
-    M = np.array(mass)
+    # Convert lists to numpy arrays and exclude the first entry
+    Z, C, W, M = map(lambda x: np.array(x[1:]), (seeds, centroids, weights, mass))
 
     return Z, C, W, M
 
 
 def get_remapped_seeds(box, Z, PeriodicX, PeriodicY, PeriodicZ):
     """
-    A function that remaps the seeds so that they remain in the periodic domain
+    Remaps seed positions to stay within a periodic domain.
 
-    Inputs:
-        box: the fluid domain given as a list [xmin, ymin, zmin, x max, ymax, zmax]
-        Z: the seed positions
-        PeriodicX: a boolian specifying periodicity in x
-        PeriodicY: a boolian specifying periodicity in y
-        PeriodicZ: a boolian specifying periodicity in z
+    Parameters:
+        box (list or tuple): Domain boundaries [xmin, ymin, zmin, xmax, ymax, zmax].
+        Z (numpy.ndarray): Seed positions.
+        PeriodicX (bool): Periodicity in the x-axis.
+        PeriodicY (bool): Periodicity in the y-axis.
+        PeriodicZ (bool): Periodicity in the z-axis.
 
-    Outputs:
-        Z: the seeds remaped to be inside the fluid domain
+    Returns:
+        numpy.ndarray: Remapped seed positions.
     """
-    
-    if PeriodicX and PeriodicY and PeriodicZ:
-        # Wrap points in x, y, and z components
+    if PeriodicX:
         Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
+    if PeriodicY:
         Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
+    if PeriodicZ:
         Z[:, 2] = (Z[:, 2] - box[2]) % (box[5] - box[2]) + box[2]
-    elif PeriodicX and PeriodicY and not PeriodicZ:
-        # Wrap points in the x and y component
-        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
-        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
-    elif PeriodicX and not PeriodicY and PeriodicZ:
-        # Wrap points in the x and z component
-        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
-        Z[:, 2] = (Z[:, 2] - box[2]) % (box[5] - box[2]) + box[2]
-    elif not PeriodicX and PeriodicY and PeriodicZ:
-        # Wrap points in the y and z component
-        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
-        Z[:, 2] = (Z[:, 2] - box[2]) % (box[5] - box[2]) + box[2]
-    elif PeriodicX and not PeriodicY and not PeriodicZ:
-        # Wrap points in the x component
-        Z[:, 0] = (Z[:, 0] - box[0]) % (box[3] - box[0]) + box[0]
-    elif not PeriodicX and PeriodicY and not PeriodicZ:
-        # Wrap points in the y component
-        Z[:, 1] = (Z[:, 1] - box[1]) % (box[4] - box[1]) + box[1]
-    elif not PeriodicX and not PeriodicY and PeriodicZ:
-        # Wrap points in the z component
-        Z[:, 2] = (Z[:, 2] - box[2]) % (box[5] - box[2]) + box[2]
-    
+
     return Z
 
 def get_point_transform(point, matrix):
     """
-    Inputs:
-        point: 
-        matrix:
+    Transforms a point using a given transformation matrix.
 
-    Outputs:
-        transformed_point:
+    Parameters:
+        point (list or numpy.ndarray): The point to transform.
+        matrix (numpy.ndarray): Transformation matrix.
+
+    Returns:
+        list: Transformed point.
     """
-    # Convert corner to a 1x3 matrix
+    # Convert point to a 1x3 matrix and perform transformation
     point_matrix = np.array(point).reshape(3, 1)
-    
-    # Perform the transformation
-    transformed_point0 = np.dot(matrix, point_matrix)
-    
-    # Convert back to a list
-    transformed_point = transformed_point0.flatten().tolist()
-    
+    transformed_point = np.dot(matrix, point_matrix).flatten().tolist()
+
     return transformed_point
 
 def Properties(Z, C, m, box):
+    """
+    Computes various physical properties based on seed and centroid positions.
+
+    Parameters:
+        Z (numpy.ndarray): Seed positions.
+        C (numpy.ndarray): Centroid positions.
+        m (numpy.ndarray): Mass array.
+        box (list or tuple): Domain boundaries.
+
+    Returns:
+        tuple: Calculated Meridional Velocities, Zonal Velocities, Temperature, Total Energy, and Conservation Error.
+    """
     # Parameters
-    f = 1
-    th0 = 1
-    g = 1
+    f, th0, g = 1, 1 ,1
 
     # Compute Meridonal Velocities
     MVel = f * (Z[:, :, 0] - C[:, :, 0])
@@ -128,3 +109,73 @@ def Properties(Z, C, m, box):
     ConservationError = (meanEnergy - totalEnergy) / meanEnergy
 
     return MVel, ZVel, T, totalEnergy, ConservationError
+
+def get_comparison_indices(Ndt, NdtRef, tf, comptime):
+    """
+    Computes the indices for comparison at a specific time from two time series.
+
+    This function is used to find the corresponding indices in two time series datasets
+    (e.g., positions or properties of particles) that are to be compared at a specific time.
+
+    Args:
+        Ndt (int): The number of data points in the first time series.
+        NdtRef (int): The number of data points in the second time series.
+        tf (float): The final time up to which the data points are recorded.
+        comptime (float): The specific time at which the comparison is to be made.
+
+    Returns:
+        tuple: A tuple of two integers representing the indices in the first and second 
+               time series respectively, corresponding to the comparison time.
+    """
+    ind = int(round((Ndt / tf) * comptime))
+    indRef = int(round((NdtRef / tf) * comptime))
+    return ind, indRef
+
+def compute_normalization(box, ZRef):
+    """
+    Computes a normalization factor based on the domain size and reference positions.
+
+    The normalization factor is used to scale certain calculations, such as error measures,
+    to account for the size of the domain and the scale of the reference positions.
+
+    Args:
+        box (list/tuple): Domain boundaries [xmin, ymin, zmin, xmax, ymax, zmax].
+        ZRef (array): Reference positions, typically a 2D numpy array where each row 
+                      represents a position in space.
+
+    Returns:
+        float: A normalization factor based on the domain size and the maximum position
+               magnitude in the reference positions.
+    """
+    Lx, Ly, Lz = box[3] - box[0], box[4] - box[1], box[5] - box[2]
+    return 1 / np.sqrt(np.abs(Lx * Ly * Lz) * np.max(np.max(np.abs(ZRef), axis=1)) ** 2)
+
+def get_velocity(Z, C, W, Type):
+    """
+    Calculate velocity components based on seed and centroid positions.
+
+    Parameters:
+        Z (numpy.ndarray): Seed positions.
+        C (numpy.ndarray): Centroid positions.
+        W (numpy.ndarray): Mass array.
+        Type (str): Type of velocity to calculate ('Meridional', 'Zonal', or 'Total').
+
+    Returns:
+        numpy.ndarray: Velocity components based on the specified type.
+            - If Type is 'Meridional', returns Meridional velocities.
+            - If Type is 'Zonal', returns Zonal velocities.
+            - If Type is 'Total', returns a stacked array of Zonal and Meridional velocities.
+    
+    Raises:
+        ValueError: If an invalid velocity type is provided.
+    """
+    if Type == 'Meridional':
+        return Z[:, :, 0] - C[:, :, 0]
+    elif Type == 'Zonal':
+        return C[:, :, 1] - Z[:, :, 1]
+    elif Type == 'Total':
+        MVel = Z[:, :, 0] - C[:, :, 0]
+        ZVel = C[:, :, 1] - Z[:, :, 1]
+        return np.dstack((ZVel, MVel))
+    else:
+        raise ValueError('Invalid velocity type. Use "Meridional", "Zonal", or "Total".')

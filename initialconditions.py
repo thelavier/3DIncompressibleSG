@@ -2,20 +2,25 @@ from dolfin import *
 import numpy as np
 import auxfunctions as aux
 
-# Construct an artificial initial condition
-
+# Construct an initial condition by perturbing a steady state
 def create_ss_initial(N, B, box, Type):
     """
-    Function that constructs an initial condition. Allows for different distributions on different axes.
+    Create an initial condition by perturbing a steady state.
 
-    Inputs:
-        N: The number of seeds
-        B: The steady state (a matrix)
-        box: The physical domain of the model
-        Type: Type of perturbation to generate
+    Parameters:
+        N (int): The number of seeds.
+        B (numpy.ndarray): The steady state transformation matrix.
+        box (list): The physical domain of the model [xmin, ymin, zmin, xmax, ymax, zmax].
+        Type (str): Type of perturbation to generate:
+            - "Thermal Sine": Perturbation with sine waves.
+            - "Thermal Gaussian": Perturbation with Gaussian distributions.
+            - "None": No perturbation.
 
-    Outputs:
-        matrix: The initial seeds positions
+    Returns:
+        numpy.ndarray: The initial seed positions.
+
+    Raises:
+        AssertionError: If an invalid perturbation type is specified.
     """
     # Compute the inverse of B and store for later use
     A = np.linalg.inv(B)
@@ -55,46 +60,51 @@ def create_ss_initial(N, B, box, Type):
     unperturbed_geostrophic = np.column_stack(
         (Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
-    # Map the latice back to the fluid domain
+    # Map the lattice back to the fluid domain
     unperturbed_fluid = np.dot(unperturbed_geostrophic, A)
 
     # Pick the type of perturbation and map back to the geostrophic domain
-    match Type:
-        case "Thermal Sine":
-            x_values = unperturbed_fluid[:, 0]
-            y_values = unperturbed_fluid[:, 1]
-            perturbed_geostrophic = np.dot(unperturbed_fluid, B) + np.column_stack(
-                [np.zeros_like(x_values), np.zeros_like(y_values), np.sin(x_values) + np.sin(y_values)])
-        case "Thermal Gaussian":
-            x_values = unperturbed_fluid[:, 0]
-            y_values = unperturbed_fluid[:, 1]
-            perturbed_geostrophic = np.dot(unperturbed_fluid, B) + np.column_stack([np.zeros_like(x_values), np.zeros_like(y_values), 3 * np.exp(-(x_values ** 2) / 2) + 3 * np.exp(-(y_values ** 2) / 2)])
-        case "None":
-            perturbed_geostrophic = np.dot(unperturbed_fluid, B)
-        case _:
-            raise AssertionError("Please specify a valid type of perturbation.")
-    
-    # Construct matrix of perturbations
+    if Type == "Thermal Sine":
+        x_values = unperturbed_fluid[:, 0]
+        y_values = unperturbed_fluid[:, 1]
+        perturbed_geostrophic = np.dot(unperturbed_fluid, B) + np.column_stack(
+            [np.zeros_like(x_values), np.zeros_like(y_values), np.sin(x_values) + np.sin(y_values)])
+    elif Type == "Thermal Gaussian":
+        x_values = unperturbed_fluid[:, 0]
+        y_values = unperturbed_fluid[:, 1]
+        perturbed_geostrophic = np.dot(unperturbed_fluid, B) + np.column_stack(
+            [np.zeros_like(x_values), np.zeros_like(y_values), 3 * np.exp(-(x_values ** 2) / 2) + 3 * np.exp(-(y_values ** 2) / 2)])
+    elif Type == "None":
+        perturbed_geostrophic = np.dot(unperturbed_fluid, B)
+    else:
+        raise AssertionError("Please specify a valid type of perturbation.")
+
+    # Construct a matrix of perturbations
     perturbation = np.random.uniform(0.8, 1, size=(N, 3))
 
     return perturbed_geostrophic * perturbation
 
 # Construct Cyclone Initial Condition
 
-def create_cyc_initial(N, box, A):
+def create_cyc_initial(N, box, A, PeriodicX, PeriodicY, PeriodicZ):
     """
-    Function that constructs the initial condition for an isolated cyclone with or without shear.
+    Create an initial condition for an isolated cyclone with or without shear.
 
-    Inputs:
-        N: The number of seeds
-        box: The fluid domain of the model given as [xmin, ymin, zmin, xmax, ymax, zmax]
-        A: Either 0 or 0.1 indicating if there is a shear wind
-        pert: A number between 2 and 0 indicating the strength of the perturbation, where 1 is no perturbation
+    Parameters:
+        N (int): The number of seeds.
+        box (list): The fluid domain of the model [xmin, ymin, zmin, xmax, ymax, zmax].
+        A (float): Shear wind factor (0 or 0.1).
+        PeriodicX (bool): Periodic boundary condition in the X-direction.
+        PeriodicY (bool): Periodic boundary condition in the Y-direction.
+        PeriodicZ (bool): Periodic boundary condition in the Z-direction.
 
-    Outputs:
-        matrix: The initial seeds positions
+    Returns:
+        numpy.ndarray: The initial seed positions.
+
+    Raises:
+        ValueError: If N does not allow generating a valid lattice.
     """
-    # Compute the square root of the number of seeds to later check that we can generate a valid lattice
+    # Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
     croot = round(N ** (1 / 3))
 
     if N == croot ** 3:
@@ -110,14 +120,44 @@ def create_cyc_initial(N, box, A):
         matrix = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
 
     else:
-        raise ValueError(
-            'Please provide a number of columns that generates a valid lattice')
+        raise ValueError('Invalid number of seeds, N must allow generating a valid lattice')
 
     # Solve Laplace's equation for the perturbation
     a, b, c = box[3], box[4], box[5]
 
     # Sub domain for Periodic boundary condition
     class PeriodicBoundary(SubDomain):
+        """
+        Define a periodic boundary condition for a specified rectangular domain.
+
+        This class represents a periodic boundary condition in three dimensions (x, y, z). It allows points on the left (x = -a)
+        and bottom (y = -b) sides to be mapped to the right (x = a) and top (y = b) sides of the rectangular domain, respectively.
+
+        Parameters:
+            a (float): The domain's half-length in the x-direction.
+            b (float): The domain's half-length in the y-direction.
+
+        Methods:
+            inside(self, x, on_boundary):
+                Determine if a point is inside the periodic boundary.
+
+                Parameters:
+                    x (list): The coordinates of the point.
+                    on_boundary (bool): Boolean indicating whether the point is on the boundary.
+
+                Returns:
+                    bool: True if the point is inside the periodic boundary, False otherwise.
+
+            map(self, x, y):
+                Map a point to the opposite side of the periodic boundary.
+
+                Parameters:
+                    x (list): The coordinates of the original point.
+                    y (list): The coordinates of the mapped point.
+
+                Returns:
+                    None
+        """
         # Points on the left (x = -a) and bottom (y = -b) are mapped to the right (x = a) and top (y = b)
         def inside(self, x, on_boundary):
             # Use near() to handle floating-point comparisons
@@ -143,10 +183,44 @@ def create_cyc_initial(N, box, A):
 
     # Sub domain for the Neumann boundary condition
     class Bottom(SubDomain):
+        """
+        Define a subdomain for the Neumann boundary condition at the bottom of the domain.
+
+        This class represents a subdomain for applying the Neumann boundary condition at the bottom of a 3D domain.
+        Points within a small tolerance of z = 0.0 are considered to be on this boundary.
+
+        Methods:
+            inside(self, x, on_boundary):
+                Determine if a point is inside the bottom subdomain.
+
+                Parameters:
+                    x (list): The coordinates of the point.
+                    on_boundary (bool): Boolean indicating whether the point is on the boundary.
+
+                Returns:
+                    bool: True if the point is inside the bottom subdomain, False otherwise.
+        """
         def inside(self, x, on_boundary):
             return bool(near(x[2], 0.0) and on_boundary)
 
     class Top(SubDomain):
+        """
+        Define a subdomain for the Neumann boundary condition at the top of the domain.
+
+        This class represents a subdomain for applying the Neumann boundary condition at the top of a 3D domain.
+        Points within a small tolerance of z = c are considered to be on this boundary.
+
+        Methods:
+            inside(self, x, on_boundary):
+                Determine if a point is inside the top subdomain.
+
+                Parameters:
+                    x (list): The coordinates of the point.
+                    on_boundary (bool): Boolean indicating whether the point is on the boundary.
+
+                Returns:
+                    bool: True if the point is inside the top subdomain, False otherwise.
+        """
         def inside(self, x, on_boundary):
             return bool(near(x[2], c) and on_boundary)
 
@@ -200,6 +274,20 @@ def create_cyc_initial(N, box, A):
 
     # Define the function to compute the mapped lattice points
     def map_lattice_points(lattice_points, function):
+        """
+        Map lattice points using the gradient of a given function.
+    
+        This function takes a list of lattice points and maps them forward using the gradient of a provided function.
+        It creates a vector function space for the gradient, evaluates the gradient at each lattice point, and maps the
+        lattice points forward by the gradient to obtain new mapped points.
+    
+        Parameters:
+            lattice_points (list of lists): A list of lattice points represented as [x, y, z] coordinates.
+            function (Expression or Function): The function whose gradient is used for mapping.
+    
+        Returns:
+            numpy.ndarray: An array of mapped points with the same shape as the input lattice_points.
+        """
         mapped_points = []
 
         # Create a vector function space for the gradient
@@ -223,6 +311,6 @@ def create_cyc_initial(N, box, A):
         return np.array(mapped_points)
 
     # Map the lattice points using the gradient of Phi + u
-    Z = map_lattice_points(matrix, Phi_u)
+    Z = aux.get_remapped_seeds(box, map_lattice_points(matrix, Phi_u), PeriodicX, PeriodicY, PeriodicZ)
 
     return Z

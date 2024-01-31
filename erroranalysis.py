@@ -9,96 +9,110 @@ import auxfunctions as aux
 
 @jax.jit
 def solve_ott(a, b, x, y, epsilon):
+    """
+    Solves the optimal transport problem using the Sinkhorn algorithm.
+
+    Args:
+        a (array): Source measure.
+        b (array): Target measure.
+        x (array): Source points.
+        y (array): Target points.
+        epsilon (float): Regularization parameter for the Sinkhorn algorithm.
+
+    Returns:
+        tuple: f and g, the dual variables of the Sinkhorn algorithm.
+    """
     n = len(a)
-    threshold = 0.01 / (n**0.33)
-    geom = pointcloud.PointCloud(jnp.array(x), jnp.array(y), epsilon = epsilon)
-    out = sinkhorn( geom, jnp.array(a), jnp.array(b),
-        threshold=threshold,
-        max_iterations=1000,
-        norm_error=2,
-        lse_mode=True,
-    )
-    # center dual variables to facilitate comparison
-    f, g, _, _, _  = out
-    f, g = f - np.mean(f), g + np.mean(f)
+    threshold = 0.01 / (n**0.33)  # Adaptive threshold based on the problem size
+    geom = pointcloud.PointCloud(jnp.array(x), jnp.array(y), epsilon=epsilon)
+    out = sinkhorn(geom, jnp.array(a), jnp.array(b),
+                   threshold=threshold,
+                   max_iterations=1000,
+                   norm_error=2,
+                   lse_mode=True)
+    # Center dual variables to facilitate comparison
+    f, g, _, _, _ = out
+    f, g = f - jnp.mean(f), g + jnp.mean(f)
     return f, g
 
 def Sqrt_Sinkhorn_Loss(Z, M, ZRef, MRef, epsilon, tf, comptime, box):
+    """
+    Computes the square root of the Sinkhorn loss between two distributions.
 
+    Args:
+        Z (array): Current seed positions.
+        M (array): Current mass distribution.
+        ZRef (array): Reference seed positions.
+        MRef (array): Reference mass distribution.
+        epsilon (float): Regularization parameter for Sinkhorn algorithm.
+        tf (float): Final time for comparison.
+        comptime (float): Specific time for comparison.
+        box (list/tuple): Domain boundaries.
+
+    Returns:
+        float: Normalized square root of the Sinkhorn loss.
+    """
     if comptime > tf:
         raise ValueError('Please select a valid comparison time.')
-    
-    # Compute the index that corresponds to the comparison time
-    Ndt = len(Z)
-    NdtRef = len(ZRef)
-    ind = int(round(( Ndt / tf ) * comptime))
-    indRef = int(round(( NdtRef / tf ) * comptime))
 
-    # Compute the normalization
-    Lx = box[3] - box[0]
-    Ly = box[4] - box[1]
-    Lz = box[5] - box[2]
-    normalization = 1 / np.sqrt(np.abs(Lx * Ly* Lz) * np.max(np.max(np.abs(ZRef[indRef]), axis=1)) ** 2)
-
-    # Compute the square root of the sinkhorn loss
+    ind, indRef = aux.get_comparison_indices(len(Z), len(ZRef), tf, comptime)
+    normalization = aux.compute_normalization(box, ZRef[indRef])
 
     f, g = solve_ott(M[ind], MRef[indRef], Z[ind], ZRef[indRef], epsilon)
     p1, p2 = solve_ott(M[ind], M[ind], Z[ind], Z[ind], epsilon)
-    print(p1, p2)
     q1, q2 = solve_ott(MRef[indRef], MRef[indRef], ZRef[indRef], ZRef[indRef], epsilon)
-    print(q1, q2)
 
     sol = np.sqrt(np.dot(M[ind], f - p1) + np.dot(MRef[indRef], g - q1))
-
     return sol / normalization
 
 def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime, box):
+    """
+    Computes the weighted Euclidean error between two distributions.
 
+    Args:
+        Z (array): Current seed positions.
+        ZRef (array): Reference seed positions.
+        MRef (array): Reference mass distribution.
+        tf (float): Final time for comparison.
+        comptime (float): Specific time for comparison.
+        box (list/tuple): Domain boundaries.
+
+    Returns:
+        float: Normalized weighted Euclidean error.
+    """
     if comptime > tf:
         raise ValueError('Please select a valid comparison time.')
-    
-    # Compute the index that corresponds to the comparison time
-    Ndt = len(Z)
-    NdtRef = len(ZRef)
-    ind = int(round(( Ndt / tf ) * comptime))
-    indRef = int(round(( NdtRef / tf ) * comptime))
 
-    # Compute the normalization
-    Lx = box[3] - box[0]
-    Ly = box[4] - box[1]
-    Lz = box[5] - box[2]
-    normalization = 1 / np.sqrt(np.abs(Lx * Ly* Lz) * np.max(np.max(np.abs(ZRef[indRef]), axis=1)) ** 2)
+    ind, indRef = aux.get_comparison_indices(len(Z), len(ZRef), tf, comptime)
+    normalization = aux.compute_normalization(box, ZRef[indRef])
 
-    # Check that Z and ZRef are the same shape
-    if np.shape(Z[ind]) != np.shape(ZRef[indRef]):
-        raise ValueError('Please provide a valid comparison')
-    
-    diff = np.linalg.norm(Z[ind].astype(float) - ZRef[indRef].astype(float), axis = 1) ** 2
+    if Z[ind].shape != ZRef[indRef].shape:
+        raise ValueError('Please provide a valid comparison.')
+
+    diff = np.linalg.norm(Z[ind].astype(float) - ZRef[indRef].astype(float), axis=1) ** 2
     sol = np.sqrt(np.dot(MRef[indRef], diff))
     return sol / normalization
     
 def Root_Mean_Squared_Velocity(Z, C, W, Type):
+    """
+    Computes the root mean squared velocity for given seed positions and types.
+
+    Args:
+        Z (array): Seed positions.
+        C (array): Centroid positions.
+        W (array): Weights/masses of the cells.
+        Type (str): Type of velocity to compute ('Meridional', 'Zonal', or 'Total').
+
+    Returns:
+        list: Root mean squared velocity for each timestep.
+    """
+    Vel = aux.get_velocity(Z, C, W, Type)
 
     results = []
-
-    if Type == 'Meridional':
-        Vel = np.array(aux.MerVel(Z, C, W))
-    elif Type == 'Zonal':
-        Vel = np.array(aux.ZonVel(Z, C, W))
-    elif Type == 'Total':
-        MVel = np.array(aux.MerVel(Z, C, W))
-        ZVel = np.array(aux.ZonVel(Z, C, W))
-        Vel = np.dstack((ZVel, MVel))
-    else:
-        raise ValueError('Please specify which velocity you want to investigate. The options are Meriodonal, Zonal, or Total')
-    
-    if Type == 'Meridional' or Type == 'Zonal':
-        for i in range(len(Vel)):
+    for i in range(len(Vel)):
+        if Type in ['Meridional', 'Zonal']:
             results.append(np.sqrt(np.mean(np.abs(Vel[i]) ** 2)))
-    elif Type == 'Total':
-        for i in range(len(Vel)):
-            results.append(np.sqrt(np.mean(np.linalg.norm(Vel[i], axis = 1) ** 2)))        
-    else:
-        raise ValueError('Please specify which velocity you want to investigate. The options are Meriodonal, Zonal, or Total')
-    
+        elif Type == 'Total':
+            results.append(np.sqrt(np.mean(np.linalg.norm(Vel[i], axis=1) ** 2)))
+
     return results
