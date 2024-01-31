@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import csv
+import auxfunctions as aux
 
 #Animate the solution to the ODE
 def point_animator(data, ZorC, Dim, box, tf):
@@ -23,20 +23,8 @@ def point_animator(data, ZorC, Dim, box, tf):
     global Z
     global C
 
-    # Initialize lists to store the loaded data
-    seeds = []
-    centroids = []
-
-    # Load the data from the CSV file
-    with open(data, mode='r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            seeds.append(eval(row['Seeds']))
-            centroids.append(eval(row['Centroids']))
-
-    # Convert the lists to NumPy arrays
-    Z = np.array(seeds)
-    C = np.array(centroids)
+    # Load the data from the file
+    Z, C, _, _ = aux.load_data(data)
 
     # Find the max and min of the seeds so that the animation domains are appropriately sized
     Zxmax = float('-inf')
@@ -74,7 +62,7 @@ def point_animator(data, ZorC, Dim, box, tf):
     elif Dim == '3D':
         ax = fig.add_subplot(projection='3d')
     else:
-        print('Please specify the dimension of the animation!')
+        raise AssertionError('Please specify the dimension of the animation!')
 
     def update(i):
         global Z
@@ -91,7 +79,7 @@ def point_animator(data, ZorC, Dim, box, tf):
                 ax.set_ylabel('Y')
             elif Dim == '3D':
                 ax.cla()
-                ax.scatter(Z[i][:,0], Z[i][:,1], Z[i][:,2], c = Z[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
+                ax.scatter(Z[i][:,0], Z[i][:,1], Z[i][:,2], color = 'blue', s = 8)
                 ax.set_xlim([Zxmin, Zxmax])
                 ax.set_ylim([Zymin, Zymax])
                 ax.set_zlim([Zzmin, Zzmax])
@@ -99,18 +87,18 @@ def point_animator(data, ZorC, Dim, box, tf):
                 ax.set_ylabel('Y')
                 ax.set_zlabel('Z')
             else:
-                print('Please specify the dimension of the animation!')
+                raise AssertionError('Please specify the dimension of the animation!')
         elif ZorC == 'C':
             if Dim == '2D':
                 ax.cla()
-                ax.scatter(C[i][:,0], C[i][:,1], c = Z[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
+                ax.scatter(C[i][:,0], C[i][:,1], c = C[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
                 ax.set_xlim([box[0], box[3]])
                 ax.set_ylim([box[1], box[4]])
                 ax.set_xlabel('X')
                 ax.set_ylabel('Y')
             elif Dim == '3D':
                 ax.cla()
-                ax.scatter(C[i][:,0], C[i][:,1], C[i][:,2], c = Z[i][:,2], cmap = 'jet', edgecolor = 'none', s = 8)
+                ax.scatter(C[i][:,0], C[i][:,1], C[i][:,2], color = 'red', s = 8)
                 ax.set_xlim([box[0], box[3]])
                 ax.set_ylim([box[1], box[4]])
                 ax.set_zlim([box[2], box[5]])
@@ -118,31 +106,31 @@ def point_animator(data, ZorC, Dim, box, tf):
                 ax.set_ylabel('Y')
                 ax.set_zlabel('Z')
             else:
-                print('Please specify the dimension of the animation!')
+                raise AssertionError('Please specify the dimension of the animation!')
         else:
-            print('Please specify if you want to animate the centroids or the seeds!')
+            raise AssertionError('Please specify if you want to animate the centroids or the seeds!')
 
     if ZorC == 'Z':
         if Dim == '2D':
             ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-            FFwriter = animation.FFMpegWriter(fps = 1000)
+            FFwriter = animation.FFMpegWriter(fps = 30)
             ani.save('./animations/SG_Seeds_2D.gif', writer = FFwriter, dpi = 100)
         elif Dim == '3D':
             ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-            FFwriter = animation.FFMpegWriter(fps = 1000)
+            FFwriter = animation.FFMpegWriter(fps = 30)
             ani.save('./animations/SG_Seeds_3D.gif', writer = FFwriter, dpi = 100)
         else:
-            print('Please specify the dimension of the animation!')
+            raise AssertionError('Please specify the dimension of the animation!')
     elif ZorC == 'C':
         if Dim == '2D':
             ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-            FFwriter = animation.FFMpegWriter(fps = 1000)
+            FFwriter = animation.FFMpegWriter(fps = 30)
             ani.save('./animations/SG_Centroids_2D.gif', writer = FFwriter, dpi = 100)
         elif Dim == '3D':
             ani = animation.FuncAnimation(fig, update, frames = Ndt, interval = tf)
-            FFwriter = animation.FFMpegWriter(fps = 1000)
+            FFwriter = animation.FFMpegWriter(fps = 30)
             ani.save('./animations/SG_Centroids_3D.gif', writer = FFwriter, dpi = 100)
         else:
-            print('Please specify the dimension of the animation!')
+            raise AssertionError('Please specify the dimension of the animation!')
     else:
-            print('Please specify if you want to animate the centroids or the seeds!')
+        raise AssertionError('Please specify if you want to animate the centroids or the seeds!')

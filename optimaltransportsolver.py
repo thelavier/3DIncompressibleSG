@@ -26,25 +26,25 @@ def make_domain(box, PeriodicX, PeriodicY, PeriodicZ):
         domain.add_box([box[0], box[1], box[2]], [box[3], box[4], box[5]])
 
     elif PeriodicX == True and PeriodicY == False and PeriodicZ == False: 
-        domain.add_box([-Lx, box[1], box[2]], [2*Lx, box[4], box[5]])
+        domain.add_box([-Lx, box[1], box[2]], [2 * Lx, box[4], box[5]])
 
     elif PeriodicX == False and PeriodicY == True and PeriodicZ == False: 
-        domain.add_box([box[0], -Ly, box[2]], [box[3], 2*Ly, box[5]])
+        domain.add_box([box[0], -Ly, box[2]], [box[3], 2 * Ly, box[5]])
 
     elif PeriodicX == False and PeriodicY == False and PeriodicZ == True: 
-        domain.add_box([box[0], box[1], -Lz], [box[3], box[4], 2*Lz])
+        domain.add_box([box[0], box[1], -Lz], [box[3], box[4], 2 * Lz])
 
     elif PeriodicX == False and PeriodicY == True and PeriodicZ == True: 
-        domain.add_box([box[0], -Ly, -Lz], [box[3], 2*Ly, 2*Lz])
+        domain.add_box([box[0], -Ly, -Lz], [box[3], 2 * Ly, 2 * Lz])
 
     elif PeriodicX == True and PeriodicY == False and PeriodicZ == True: 
-        domain.add_box([-Lx, box[1], -Lz], [2*Lx, box[4], 2*Ly])
+        domain.add_box([-Lx, box[1], -Lz], [2 * Lx, box[4], 2 * Ly])
 
     elif PeriodicX == True and PeriodicY == True and PeriodicZ == False: 
-        domain.add_box([-Lx, -Ly, box[2]], [2*Lx, 2*Ly, box[5]])
+        domain.add_box([-Lx, -Ly, box[2]], [2 * Lx, 2 * Ly, box[5]])
 
     elif PeriodicX == True and PeriodicY == True and PeriodicZ == True: 
-        domain.add_box([-Lx, -Ly, -Lz], [2*Lx, 2*Ly, 2*Lz])
+        domain.add_box([-Lx, -Ly, -Lz], [2 * Lx, 2 * Ly, 2 * Lz])
 
     else: 
         AssertionError('Please specify the periodicity of the domain.')
@@ -74,12 +74,12 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, sol
         psi: The optimal weights
     """
     N = Y.shape[0] #Determine the number of seeds
-    Lx = box[3] - box[0]
-    Ly = box[4] - box[1]
-    Lz = box[5] - box[2]
+    Lx = abs(box[3] - box[0])
+    Ly = abs(box[4] - box[1])
+    Lz = abs(box[5] - box[2])
 
     if PeriodicX == False and PeriodicY == False and PeriodicZ == False:
-        ot = OptimalTransport(positions = Y, weights = psi0, masses = domain.measure() / N * np.ones(N), domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
+        ot = OptimalTransport(positions = Y, weights = psi0, masses = Lx * Ly * Lz * np.ones(N) / N, domain = domain, linear_solver = solver) #Establish the Optimal Transport problem
         ot.set_stopping_criterion(err_tol, 'max delta masses') #Pick the stopping criterion to be the mass of the cells
 
     elif PeriodicX == True and PeriodicY == True and PeriodicZ == False:
@@ -141,7 +141,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, sol
     #    print('Target masses before Damped Newton', premass)
     #    print('Weights before Damped Newton', ot.get_weights())
     #    print('Mass before Damped Newton', ot.pd.integrals())
-        print('Total:', sum(ot.pd.integrals()))
+    #    print('Total:', sum(ot.pd.integrals()))
     else:
         pass
 
@@ -151,7 +151,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, sol
 
     if debug == True:
     #    print('Mass after Damped Newton', postmass, 'Total:', sum(postmass)) #Print the mass of each cell
-        print('Difference in target and final mass', np.linalg.norm(premass-postmass)) #Check how different the final mass is from the target mass
+        print('Difference in target and final mass', np.linalg.norm(premass - postmass) / np.linalg.norm(premass)) #Check how different the final mass is from the target mass
     else:
         pass
 

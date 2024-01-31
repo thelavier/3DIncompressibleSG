@@ -1,24 +1,29 @@
 import numpy as np
-import sys
-import csv
-csv.field_size_limit(min(sys.maxsize, 2147483646))
+import msgpack
 
 def load_data(data):
-
     # Initialize lists to store the loaded data
     seeds = []
     centroids = []
     weights = []
     mass = []
 
-    # Load the data from the CSV file
-    with open(data, mode='r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            seeds.append(eval(row['Seeds']))
-            centroids.append(eval(row['Centroids']))
-            weights.append(eval(row['Weights']))
-            mass.append(eval(row['Mass']))
+    # Load the data from the MessagePack file
+    with open(data, mode='rb') as msgpackfile:
+
+        # Load the remaining data
+        unpacker = msgpack.Unpacker(msgpackfile, raw=False)
+        for row in unpacker:
+            seeds.append(np.array(row.get('Seeds', []), dtype=object).astype(np.float64))
+            centroids.append(np.array(row.get('Centroids', []), dtype=object).astype(np.float64))
+            weights.append(np.array(row.get('Weights', []), dtype=object).astype(np.float64))
+            mass.append(np.array(row.get('Mass', []), dtype=object).astype(np.float64))
+
+    # Exclude the first entry from each list
+    seeds = seeds[1:]
+    centroids = centroids[1:]
+    weights = weights[1:]
+    mass = mass[1:]
 
     # Access the individual arrays
     Z = np.array(seeds)
@@ -93,37 +98,33 @@ def get_point_transform(point, matrix):
     
     return transformed_point
 
-def cyc_pertub(x, y):
-    return (1 + (x/0.5)**2 + (y/0.5)**2)**(-(3/2)) - (1/2) * ((1 + ((x - 1)/0.5)**2 + (y/0.5)**2)**(-(3/2)) + (1 + ((x + 1)/0.5)**2 + (y/0.5)**2)**(-(3/2)))
-
-def cyc_temp_surface(x, y, z):
-    return -(y/(1 + y**2)) - 0.12 * y + 0.15 * cyc_pertub(x, y)
-
-def cyc_temp_lid(x, y, z, A):
-    return -(1/2) * (y/((1 + z)**2 + y**2) + y/((1 - z)**2 + y**2)) - 0.12 * y + A * z - 0.6 * cyc_pertub(x + 1, y) + 1.29
-
-def MerVel(Z, C, W):
-
-    # Physical Constants
-    f = 1e-4
+def Properties(Z, C, m, box):
+    # Parameters
+    f = 1
+    th0 = 1
+    g = 1
 
     # Compute Meridonal Velocities
-    MVel = [[0] * len(W[0]) for _ in range(len(W))]
-    for i in range(len(W)):
-        for j in range(len(W[0])):
-            MVel[i][j] = f * (Z[i][j][0] - C[i][j][0])
-
-    return MVel
-
-def ZonVel(Z, C, W):
-
-    # Physical Constants
-    f = 1e-4
+    MVel = f * (Z[:, :, 0] - C[:, :, 0])
 
     # Compute Zonal Velocities
-    ZVel = [[0] * len(W[0]) for _ in range(len(W))]
-    for i in range(len(W)):
-        for j in range(len(W[0])):
-            ZVel[i][j] = f * ( - Z[i][j][1] + C[i][j][1])
-        
-    return ZVel
+    ZVel = f * (C[:, :, 1] - Z[:, :, 1])
+
+    # Compute Temperature
+    T = (th0 * f ** 2) / g * Z[:, :, 2]
+
+    # Compute Integral of |x|^2
+    domvol = (1 / 3) * (box[0] - box[3]) * (box[1] - box[4]) * (box[2] - box[5]) * \
+       (box[0] ** 2 + box[1] ** 2 + box[2] ** 2 + box[3] ** 2 + box[4] ** 2 + box[5] ** 2 + box[0] * box[3] + box[1] * box[4] + box[2] * box[5])
+
+    # Vectorized computation of Kinetic Energy for each point at every timestep
+    norm_Z_squared = np.sum(Z.astype(float) ** 2, axis=2)
+    dot_Z_C = np.sum(Z * C, axis=2)
+    
+    totalEnergy = (f ** 2 / 2) * (domvol + np.sum(m * norm_Z_squared, axis=1) - 2 * np.sum(m * dot_Z_C, axis=1)) 
+    
+    meanEnergy = np.mean(totalEnergy)
+
+    ConservationError = (meanEnergy - totalEnergy) / meanEnergy
+
+    return MVel, ZVel, T, totalEnergy, ConservationError

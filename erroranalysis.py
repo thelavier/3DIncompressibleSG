@@ -73,7 +73,7 @@ def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime, box):
     if np.shape(Z[ind]) != np.shape(ZRef[indRef]):
         raise ValueError('Please provide a valid comparison')
     
-    diff = np.linalg.norm(Z[ind] - ZRef[indRef], axis = 1) ** 2
+    diff = np.linalg.norm(Z[ind].astype(float) - ZRef[indRef].astype(float), axis = 1) ** 2
     sol = np.sqrt(np.dot(MRef[indRef], diff))
     return sol / normalization
     
