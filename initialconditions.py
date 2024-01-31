@@ -72,7 +72,7 @@ def create_ss_initial(N, B, box, Type):
         case "None":
             perturbed_geostrophic = np.dot(unperturbed_fluid, B)
         case _:
-            AssertionError("Please specify a valid type of perturbation.")
+            raise AssertionError("Please specify a valid type of perturbation.")
     
     # Construct matrix of perturbations
     perturbation = np.random.uniform(0.8, 1, size=(N, 3))
