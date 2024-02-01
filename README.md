@@ -38,40 +38,26 @@ At the moment there are two initial conditions implemented. They can be found in
 ### Evolution of an Isolated Semi-Geostrophic Cyclone
 
 This initial condition is an implementation of the work of Schaer and Wernli. In order to construct the initial condition we use FEniCS to solve Laplace's equation
-'''math
-\Delta \tilde{\Phi}=0
-'''
+$$\Delta \tilde{\Phi}=0$$
 for the perturbation $ \tilde{\Phi}(x,y,z)$. The perturbation is given in a box $[-a,a]\times[-b,b]\times[0,c]$ which periodic in $x$ and $y$ and has Neumann boundary conditions in $z$. The Neumann boundary conditions are given as:
-'''math
-\frac{\partial\tilde{\Phi}}{\partial z}\bigg\vert_{z=0}=f(x,y)\quad\mathrm{and}\quad \frac{\partial\tilde{\Phi}}{\partial z}\bigg\vert_{z=c}=g(x,y).
-'''
+$$\frac{\partial\tilde{\Phi}}{\partial z}\bigg\vert_{z=0}=f(x,y)\quad\mathrm{and}\quad \frac{\partial\tilde{\Phi}}{\partial z}\bigg\vert_{z=c}=g(x,y).$$
 The functions $f(x,y)$ and $g(x,y)$ are structurally similar in that they are both composed of three circular perturbations but differ in the offset and amplitude of the circular perturbations.
 
 An explicit solution to this partial differential equation is possible to construct using a Fourier expansion. However, the Fourier coefficients cannot be found analytically. In _testspace.ipynb_ one can find a numerical implementation finding the first of the needed Fourier coefficients. 
 
 Once the solution to Laplace's equation for the perturbation is obtained we add it to the base state,
-'''math
-\overline{\Phi}(x,y,z) = \frac{1}{2} \left(\arctan\left(\frac{y}{1 + z}\right) - \arctan\left(\frac{y}{1 - z}\right)\right) - 0.12yz - \frac{1}{2}A\left(y^2 - z^2\right),
-'''
+$$\overline{\Phi}(x,y,z) = \frac{1}{2} \left(\arctan\left(\frac{y}{1 + z}\right) - \arctan\left(\frac{y}{1 - z}\right)\right) - 0.12yz - \frac{1}{2}A\left(y^2 - z^2\right),$$
 where $A$ is the shear parameter. Thus we recover the full modified geopotential function
-'''math
-\Phi=\overline\Phi+\tilde\Phi
-'''
+$$\Phi=\overline\Phi+\tilde\Phi$$
 and the intial condition is taken to be the pushforward of
-'''math
-\text{Id}+\nabla\Phi.
-'''
+$$\text{Id}+\nabla\Phi.$$
 
 ### Perturbation of a Steady State
 
 The other initial condition that is implemented is the perturbation of a basic state. This follows from the work of Charles Egan. A steady state can be constructed out of any $3\times3$ symmetric invertible matrix, $B$. This corresponds to a choice of modified geopotential of the form 
-'''math
-\overline P=\frac{1}{2}x\cdot Bx
-'''
+$$\overline P=\frac{1}{2}x\cdot Bx$$
 To construct these initial conditions we take the steady state encoded by $B$ and map the fluid (read source) domain forward under
-'''math
-\nabla \overline P = Bx
-'''
+$$\nabla \overline P = Bx$$
 to find the geostrophic (read target) domain. The geostrophic domain is then filled with a lattice that is mapped back to the fluid domain via $\left(\nabla \overline P\right)^{-1}$. A perturbation is then added to $\overline P$ to create $P$ and the lattice in the fluid domain is then mapped back to the geostrophic domain by $\nabla P$ applying the perturbation and creating the initial seed configuration. 
 
 ## Diagnostic Tools
