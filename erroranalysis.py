@@ -93,20 +93,19 @@ def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime, box):
     sol = np.sqrt(np.dot(MRef[indRef], diff))
     return sol / normalization
     
-def Root_Mean_Squared_Velocity(Z, C, W, Type):
+def Root_Mean_Squared_Velocity(Z, C, Type):
     """
     Computes the root mean squared velocity for given seed positions and types.
 
     Args:
         Z (array): Seed positions.
         C (array): Centroid positions.
-        W (array): Weights/masses of the cells.
         Type (str): Type of velocity to compute ('Meridional', 'Zonal', or 'Total').
 
     Returns:
         list: Root mean squared velocity for each timestep.
     """
-    Vel = aux.get_velocity(Z, C, W, Type)
+    Vel = aux.get_velocity(Z, C, Type)
 
     results = []
     for i in range(len(Vel)):

@@ -82,17 +82,14 @@ def Properties(Z, C, m, box):
     Returns:
         tuple: Calculated Meridional Velocities, Zonal Velocities, Temperature, Total Energy, and Conservation Error.
     """
-    # Parameters
-    f, th0, g = 1, 1 ,1
-
     # Compute Meridonal Velocities
-    MVel = f * (Z[:, :, 0] - C[:, :, 0])
+    MVel = (Z[:, :, 0] - C[:, :, 0])
 
     # Compute Zonal Velocities
-    ZVel = f * (C[:, :, 1] - Z[:, :, 1])
+    ZVel = (C[:, :, 1] - Z[:, :, 1])
 
     # Compute Temperature
-    T = (th0 * f ** 2) / g * Z[:, :, 2]
+    T = 1 / Z[:, :, 2]
 
     # Compute Integral of |x|^2
     domvol = (1 / 3) * (box[0] - box[3]) * (box[1] - box[4]) * (box[2] - box[5]) * \
@@ -102,7 +99,7 @@ def Properties(Z, C, m, box):
     norm_Z_squared = np.sum(Z.astype(float) ** 2, axis=2)
     dot_Z_C = np.sum(Z * C, axis=2)
     
-    totalEnergy = (f ** 2 / 2) * (domvol + np.sum(m * norm_Z_squared, axis=1) - 2 * np.sum(m * dot_Z_C, axis=1)) 
+    totalEnergy = domvol + np.sum(m * norm_Z_squared, axis=1) - 2 * np.sum(m * dot_Z_C, axis=1)
     
     meanEnergy = np.mean(totalEnergy)
 
@@ -150,14 +147,13 @@ def compute_normalization(box, ZRef):
     Lx, Ly, Lz = box[3] - box[0], box[4] - box[1], box[5] - box[2]
     return 1 / np.sqrt(np.abs(Lx * Ly * Lz) * np.max(np.max(np.abs(ZRef), axis=1)) ** 2)
 
-def get_velocity(Z, C, W, Type):
+def get_velocity(Z, C, Type):
     """
     Calculate velocity components based on seed and centroid positions.
 
     Parameters:
         Z (numpy.ndarray): Seed positions.
         C (numpy.ndarray): Centroid positions.
-        W (numpy.ndarray): Mass array.
         Type (str): Type of velocity to calculate ('Meridional', 'Zonal', or 'Total').
 
     Returns:

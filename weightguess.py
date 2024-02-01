@@ -1,5 +1,6 @@
 import numpy as np
 
+#Define the rescaling function to improve the inital guess for the Damped Newton Solver
 def rescale_weights(bx, Z, psi, PeriodicX, PeriodicY, PeriodicZ):
     """
     Rescales weights for 3D Laguerre tessellation, ensuring positive cell areas.

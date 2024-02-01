@@ -72,15 +72,15 @@ def get_update_function(ax, Z, C, ZorC, Dim, Z_bounds, C_bounds):
     def update(i):
         ax.cla()
         if ZorC == 'Z':
-            plot_data(ax, Z[i], Dim, Z_bounds)
+            plot_data(ax, Z[i], Dim, Z_bounds, ZorC)
         elif ZorC == 'C':
-            plot_data(ax, C[i], Dim, C_bounds)
+            plot_data(ax, C[i], Dim, C_bounds, ZorC)
         else:
             raise ValueError('Invalid ZorC value. Choose "Z" for seeds or "C" for centroids.')
 
     return update
 
-def plot_data(ax, data, Dim, bounds):
+def plot_data(ax, data, Dim, bounds, ZorC):
     """
     Plot the data on the given axis based on the dimension.
     """
@@ -91,7 +91,8 @@ def plot_data(ax, data, Dim, bounds):
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
     elif Dim == '3D':
-        ax.scatter(data[:,0], data[:,1], data[:,2], color='blue', s=8)
+        color = 'blue' if ZorC == 'Z' else 'red'  # Set color based on ZorC
+        ax.scatter(data[:,0], data[:,1], data[:,2], color=color, s=8)
         ax.set_xlim([bounds[0], bounds[3]])
         ax.set_ylim([bounds[1], bounds[4]])
         ax.set_zlim([bounds[2], bounds[5]])
@@ -103,7 +104,7 @@ def save_animation(ani, ZorC, Dim):
     """
     Save the animation to a file.
     """
-    filename = f'./animations/SG_{ZorC}_{Dim}.gif'
+    filename = f'./animations/SG_{"Seeds" if ZorC == "Z" else "Centroids"}_{Dim}.gif'
     FFwriter = animation.FFMpegWriter(fps=30)
     ani.save(filename, writer=FFwriter, dpi=100)
 
