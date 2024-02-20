@@ -33,11 +33,11 @@ The other specialty package is PETSc which is used as the linear solver in the o
     ~~~
 6. Next:
     ~~~bash
-    make all
+    make PETSC_DIR=/home/ . . . /Software/petsc PETSC_ARCH=linux-c-opt all
     ~~~
 7. Ensure that the installation was successful with:
     ~~~
-    make PETSC_DIR=/home/ . . . /Software/petsc PETSC_ARCH=arch-linux-c-debug check
+    make PETSC_DIR=/home/ . . . /Software/petsc PETSC_ARCH=linux-c-opt check
     ~~~
 8. Modify .bashrc or .zshrc with the path to your PETSc installation:
     ~~~
