@@ -25,8 +25,9 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
     # Setup and initialization
     N = len(Z0)
     dt = FinalTime / Ndt
-    err_tol = (PercentTolerance / 100) * (ots.make_domain(box, PeriodicX, PeriodicY, PeriodicZ).measure() / N)
     D = ots.make_domain(box, PeriodicX, PeriodicY, PeriodicZ) # Construct the domain
+    Lx, Ly, Lz = [box[i+3] - box[i] for i in range(3)]
+    err_tol = (PercentTolerance / 100) * (Lx * Ly * Lz / N)
 
     # Setup extended J matrix for RHS of the ODE
     P = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
@@ -40,7 +41,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
     with open('./data/SG_data.msgpack', 'wb') as msgpackfile:
         # Define the header data
         header_data = {
-            'fieldnames': ['time_step', 'Seeds', 'Centroids', 'Weights', 'Mass'],
+            'fieldnames': ['time_step', 'Seeds', 'Centroids', 'Weights', 'Mass', 'TransportCost'],
         }
 
         # Write the header using MessagePack
@@ -61,6 +62,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
         C_window = [sol[0].copy(), sol[0].copy(), sol[0].copy()]
         w_window = [sol[1].copy(), sol[1].copy(), sol[1].copy()]
         m_window = [sol[2].copy(), sol[2].copy(), sol[2].copy()]
+        TC_window = [sol[3].copy(), sol[3].copy(), sol[3].copy()]
 
         if debug:
             print("Time Step 1") # Use for tracking progress of the code when debugging.
@@ -75,6 +77,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
         C_window[1] = sol[0].copy() # Store the centroids
         w_window[1] = sol[1].copy() # Store the optimal weights
         m_window[1] = sol[2].copy() # Store the mass of each cell
+        TC_window[1] = sol[3].copy() # Store the transport cost of each cell
 
         # Save the data for time step 0 and 1
         msgpackfile.write(msgpack.packb({
@@ -83,6 +86,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
             'Centroids': C_window[0].tolist(),
             'Weights': w_window[0].tolist(),
             'Mass': m_window[0].tolist(),
+            'TransportCost': TC_window[0].tolist(),
         }))
 
         msgpackfile.write(msgpack.packb({
@@ -91,6 +95,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
             'Centroids': C_window[1].tolist(),
             'Weights': w_window[1].tolist(),
             'Mass': m_window[1].tolist(),
+            'TransportCost': TC_window[1].tolist(),
         }))
 
         # Apply Adams-Bashforth 2 to solve the ODE
@@ -113,6 +118,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
             C_window[i % 3] = sol[0].copy()
             w_window[i % 3] = sol[1].copy()
             m_window[i % 3] = sol[2].copy()
+            TC_window[i % 3] = sol[3].copy() 
 
             # Save the data for Z, C, w, and M continuously
             msgpackfile.write(msgpack.packb({
@@ -121,4 +127,5 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
                 'Centroids': C_window[i % 3].tolist(),
                 'Weights': w_window[i % 3].tolist(),
                 'Mass': m_window[i % 3].tolist(),
+                'TransportCost': TC_window[i % 3].tolist(),
             }))

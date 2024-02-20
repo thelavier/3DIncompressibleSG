@@ -21,7 +21,7 @@ def point_animator(data, ZorC, Dim, box, tf):
     plt.rcParams['animation.ffmpeg_path'] = 'ffmpeg'
 
     # Load data
-    Z, C, _, _ = aux.load_data(data)
+    Z, C, _, _, _ = aux.load_data(data)
 
     # Determine animation bounds
     Z_bounds = get_animation_bounds(Z) if ZorC == 'Z' else box
