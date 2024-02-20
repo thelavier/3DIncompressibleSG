@@ -10,7 +10,7 @@ This code uses the standard suite of python packages, namely, matplotlib, numpy,
 
 The core specialty package of this code is the sd-ot/pysdot package created by Merigot and Leclerc to solve the optimal transport problem.
 
-The final specialty package is PETSc which is used as the linear solver in the optimal transport problem. To install PETSc do the following:
+The other specialty package is PETSc which is used as the linear solver in the optimal transport problem. To install PETSc on ubuntu with root access do the following:
 1. From your terminal in your home folder begin with:
     ~~~
     mkdir -p ~/Software
@@ -35,21 +35,17 @@ The final specialty package is PETSc which is used as the linear solver in the o
     ~~~bash
     make all
     ~~~
-7. Modify .bashrc or .zshrc with the path to your PETSc installation:
+7. Ensure that the installation was successful with:
+    ~~~
+    make PETSC_DIR=/home/ . . . /Software/petsc PETSC_ARCH=arch-linux-c-debug check
+    ~~~
+8. Modify .bashrc or .zshrc with the path to your PETSc installation:
     ~~~
     # >>> PETSc initialize >>>
-    export PETSC_DIR="/home/usr/Software/petsc"
+    export PETSC_DIR="/home/ . . . /Software/petsc"
     export PETSC_ARCH="linux-c-opt"
-    export PYTHONPATH="/home/usr/Software/petsc/linux-c-opt/lib:$PYTHONPATH"
+    export PYTHONPATH="/home/ . . . /Software/petsc/linux-c-opt/lib:$PYTHONPATH"
     # <<< PETSc initialize <<<
-    ~~~
-    You can find the path to your instillation by using:
-    ~~~
-    export PETSC_DIR=$PWD
-    ~~~
-    and verify that it is set correctly by using 
-    ~~~
-    echo $PETSC_DIR
     ~~~
 
 Make sure that you have updated the key packages such as pip, numpy, scipy, and matplotlib as well as your compiler such as gcc or g++.
