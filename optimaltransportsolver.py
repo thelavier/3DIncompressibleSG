@@ -49,7 +49,7 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, sol
     """
     N = Y.shape[0]
     Lx, Ly, Lz = [abs(box[i+3] - box[i]) for i in range(3)]
-    ot = OptimalTransport(positions = Y, weights = psi0, masses = Lx * Ly * Lz * np.ones(N) / N, domain=domain, linear_solver=solver)
+    ot = OptimalTransport(positions = Y, weights = psi0, masses = Lx * Ly * Lz * np.ones(N) / N, domain=domain, linear_solver=solver, verbosity=0)
     ot.set_stopping_criterion(err_tol, 'max delta masses')
 
     # Adding replications based on periodicity
