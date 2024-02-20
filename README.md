@@ -10,14 +10,49 @@ This code uses the standard suite of python packages, namely, matplotlib, numpy,
 
 The core specialty package of this code is the sd-ot/pysdot package created by Merigot and Leclerc to solve the optimal transport problem.
 
-This code is using legacy fenics to solve Laplaces equation for the perturbation in the generation of the initial conditions of the isolated semi-geostrophic cyclone. 
-To install legacy fenics on a unix computer do the following:
-sudo apt-get install software-properties-common
-sudo add-apt-repository ppa:fenics-packages/fenics
-sudo apt-get update
-sudo apt-get install fenics
+The final specialty package is PETSc which is used as the linear solver in the optimal transport problem. To install PETSc do the following:
+1. From your terminal in your home folder begin with:
+    ~~~
+    mkdir -p ~/Software
+    ~~~
+2. And enter the folder: 
+    ~~~
+    cd Software
+    ~~~
+3. Clone the github repository for PETSc
+    ~~~
+    git clone -b release https://github.com/petsc/petsc.git petsc
+    ~~~
+4. Next:
+    ~~~
+    cd petsc
+    ~~~
+5. Next:
+    ~~~
+    ./configure --with-petsc4py=1
+    ~~~
+6. Next:
+    ~~~bash
+    make all
+    ~~~
+7. Modify .bashrc or .zshrc with the path to your PETSc installation:
+    ~~~
+    # >>> PETSc initialize >>>
+    export PETSC_DIR="/home/usr/Software/petsc"
+    export PETSC_ARCH="linux-c-opt"
+    export PYTHONPATH="/home/usr/Software/petsc/linux-c-opt/lib:$PYTHONPATH"
+    # <<< PETSc initialize <<<
+    ~~~
+    You can find the path to your instillation by using:
+    ~~~
+    export PETSC_DIR=$PWD
+    ~~~
+    and verify that it is set correctly by using 
+    ~~~
+    echo $PETSC_DIR
+    ~~~
 
-The final specialty package is Petsc which is used as the linear solver in the optimal transport problem. In this implementation the path to the Petsc installation is directly linked.
+Make sure that you have updated the key packages such as pip, numpy, scipy, and matplotlib as well as your compiler such as gcc or g++.
 
 ## Usage
 
