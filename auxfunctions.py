@@ -209,34 +209,45 @@ def basic_state(x, y, z, A):
     """
     return 0.5 * (np.arctan2(y, 1 + z) - np.arctan2(y, 1 - z)) - 0.12 * y * z - 0.5 * A * (y**2 - z**2)
 
+
 def grad_basic_state(x, y, z, A):
     """
-    Compute the gradient of the basic state function at a given point.
+    Compute the gradient of the basic state function at given point(s).
 
-    This function calculates the spatial gradient of the basic state, which is used
-    to place seeds in the geostrophic space. It is essential for understanding how
-    perturbations in the basic state might evolve.
+    This function calculates the spatial gradient of the basic state for scalar or array inputs.
+    It is instrumental in seeding initial conditions within the geostrophic flow, allowing for
+    analysis of how small perturbations might develop over time in both individual points and
+    spatial grids.
 
     Parameters:
-        x (float): The x-coordinate of the point. Note: The gradient with respect to x is always 0.
-        y (float): The y-coordinate of the point.
-        z (float): The z-coordinate (height or depth) of the point.
-        A (float): Shear wind factor influencing the gradient computation.
+        x (float or np.ndarray): The x-coordinate(s) of the point(s), where the gradient with respect
+                                 to x is always 0, indicating no variation in the x-direction.
+        y (float or np.ndarray): The y-coordinate(s) of the point(s), influencing the gradient in the y-direction.
+        z (float or np.ndarray): The z-coordinate(s) (height or depth) of the point(s), affecting the gradient in the z-direction.
+        A (float): Shear wind factor, a parameter that influences the computation of the gradient
+                   and reflects environmental conditions.
 
     Returns:
-        np.ndarray: A 3-element array representing the gradient of the basic state at the given point,
-                    corresponding to [du/dx, du/dy, du/dz]. The gradient with respect to x is always 0,
-                    reflecting the assumption of symmetry or lack of change in the x direction.
+        np.ndarray: A 3-element array (or an array of 3-element arrays for multiple points) representing
+                    the gradient of the basic state at the given point(s), with elements corresponding
+                    to [du/dx, du/dy, du/dz]. The first element (du/dx) is always 0.
 
     Note:
-        This function is designed for scalar inputs, reflecting its use for point-specific calculations.
+        This function supports both scalar and array inputs, enhancing its applicability for a wide
+        range of scenarios, from evaluating individual points to processing spatial grids.
     """
-    grad = np.zeros(3, dtype=np.float64)
+    # Determine the shape based on input types, handling both scalar and array inputs
+    if np.isscalar(x) and np.isscalar(y) and np.isscalar(z):
+        grad = np.zeros(3, dtype=np.float64)  # For scalar inputs
+    else:
+        # Ensure compatibility with arrays of different shapes
+        shape = np.broadcast(np.asarray(x), np.asarray(y), np.asarray(z)).shape
+        grad = np.zeros(shape + (3,), dtype=np.float64)  # For array inputs
 
-    # Calculate df_dy and df_dz using the derived formulas
-    grad[0] = 0
-    grad[1] = -A * y - 0.12 * z - 0.5 * (1 - z) / (y**2 + (1 - z)**2) + 0.5 * (z + 1) / (y**2 + (z + 1)**2)
-    grad[2] = A * z - 0.12 * y - 0.5 * y / (y**2 + (z + 1)**2) - 0.5 * y / (y**2 + (1 - z)**2)
+    # Compute the gradient
+    grad[..., 0] = 0 #dPhi/dx
+    grad[..., 1] = -A * y - 0.12 * z - 0.5 * (1 - z) / (y**2 + (1 - z)**2) + 0.5 * (z + 1) / (y**2 + (z + 1)**2) #dPhi/dy
+    grad[..., 2] = A * z - 0.12 * y - 0.5 * y / (y**2 + (z + 1)**2) - 0.5 * y / (y**2 + (1 - z)**2) #dPhi/dz
 
     return grad
 
@@ -264,7 +275,7 @@ def compute_fft_coefficients(box, truncation):
 
     def integrand_top(x, y):
         """Perturbation function at the top boundary."""
-        return -0.6 * cyc_perturb(x + 1, y)
+        return -0.6 * cyc_perturb(x + 1, y) 
 
     # Integrate boundary functions 
     If, _ = nquad(integrand_bottom, [[-a, a], [-b, b]])
@@ -375,38 +386,41 @@ def compute_coefficients(box, Fourier_coefficients):
 
 def grad_u(x, y, z, coefficients, a, b):
     """
-    Calculate the spatial gradient of the solution at a single point (x, y, z).
+    Calculate the spatial gradient of the solution at a single point or for arrays of points (x, y, z).
 
-    This function computes the gradient of the solution for a given point in space,
-    based on the Fourier series coefficients. It is optimized for evaluating the
-    gradient at individual points rather than across a grid.
+    This function computes the gradient of the solution for a given point(s) in space,
+    based on the Fourier series coefficients. It supports both scalar and array inputs
+    for x, y, and z coordinates.
 
     Parameters:
-        x (float): The x-coordinate for which to compute the gradient.
-        y (float): The y-coordinate for which to compute the gradient.
-        z (float): The z-coordinate (height) at which to compute the gradient.
+        x (float or np.ndarray): The x-coordinate(s) for which to compute the gradient.
+        y (float or np.ndarray): The y-coordinate(s) for which to compute the gradient.
+        z (float or np.ndarray): The z-coordinate(s) (height) at which to compute the gradient.
         coefficients (np.ndarray): Array of coefficients for the solution, where
                                    each row contains [kx, ky, C1, C2].
         a (float): Size of the domain in the x direction.
         b (float): Size of the domain in the y direction.
 
     Returns:
-        np.ndarray: The computed gradient of the solution at the given point, as a
-                    3-element array corresponding to the gradients [du/dx, du/dy, du/dz].
+        np.ndarray: The computed gradient of the solution at the given point(s), as an
+                    array corresponding to the gradients [du/dx, du/dy, du/dz].
     """
-    # Create an empty array to store the results
-    grad = np.zeros(3, dtype=np.complex128)
+    # Determine if the inputs are scalar or array to initialize the gradient storage appropriately
+    if np.isscalar(x) and np.isscalar(y) and np.isscalar(z):
+        grad = np.zeros(3, dtype=np.complex128)  # For scalar inputs
+    else:
+        # Ensures compatibility with arrays of different shapes
+        shape = np.broadcast(np.asarray(x), np.asarray(y), np.asarray(z)).shape
+        grad = np.zeros(shape + (3,), dtype=np.complex128)  # For array inputs
 
+    # Compute the gradient
     for kx, ky, C1, C2 in coefficients:
         kz = compute_kz(kx, ky, a, b)
         term_x = np.exp(1j * np.pi * kx * (x + a) / a)
         term_y = np.exp(1j * np.pi * ky * (y + b) / b)
-        exp_kz = np.exp(kz * z)
-        exp_neg_kz = np.exp(-kz * z)
-        
-        grad[0] += (1j * np.pi * kx / a) * term_x * term_y * (C1 * exp_kz + C2 * exp_neg_kz)
-        grad[1] += (1j * np.pi * ky / b) * term_x * term_y * (C1 * exp_kz + C2 * exp_neg_kz)
-        grad[2] += kz * term_x * term_y * (C1 * exp_kz - C2 * exp_neg_kz)
+        grad[..., 0] += (1j * np.pi * kx / a) * term_x * term_y * (C1 * np.exp(kz * z) + C2 * np.exp(-kz * z))  # du/dx
+        grad[..., 1] += (1j * np.pi * ky / b) * term_x * term_y * (C1 * np.exp(kz * z) + C2 * np.exp(-kz * z))  # du/dy
+        grad[..., 2] += term_x * term_y * kz * (C1 * np.exp(kz * z) - C2 * np.exp(-kz * z))  # du/dz
 
     return grad
 
@@ -439,7 +453,7 @@ def u(x, y, z, coefficients, a, b):
         u += term_x * term_y * (C1 * np.exp(kz * z) + C2 * np.exp(-kz * z))
     return u
 
-def map_lattice_points(lattice_points, box, coefficients, A):
+def map_lattice_points(N, box, coefficients, A):
     """
     Map lattice points using the gradient of the solution.
 
@@ -448,9 +462,7 @@ def map_lattice_points(lattice_points, box, coefficients, A):
     computational domain according to specific dynamics defined by the gradient.
 
     Parameters:
-        lattice_points (np.ndarray): An array of lattice points with shape (N, 3), 
-                                     where N is the number of points, and each point is 
-                                     represented as [x, y, z] coordinates.
+        N (int): Number of points
         coefficients (np.ndarray): Array of coefficients form the solution to Laplaces equation, used to 
                                    calculate the gradient at each point.
         box (list): The domain of the model specified as [xmin, ymin, zmin, xmax, ymax, zmax].
@@ -459,18 +471,34 @@ def map_lattice_points(lattice_points, box, coefficients, A):
     Returns:
         np.ndarray: An array of mapped points with the same shape as the input lattice_points.
     """
+    # Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
+    croot = round(N ** (1 / 3))
+
+    if N == croot ** 3:
+        # Create coordinate arrays for each dimension
+        col_x = np.linspace(box[0], box[3], croot)
+        col_y = np.linspace(box[1], box[4], croot)
+        col_z = np.linspace(box[2], box[5], croot)
+
+        # Create a 3D lattice using meshgrid
+        Col_X1, Col_Y1, Col_Z1 = np.meshgrid(col_x, col_y, col_z, indexing='ij')
+
+        # Combine the coordinate arrays into a single matrix
+        lattice_points = np.stack((Col_X1, Col_Y1, Col_Z1), axis=-1)
+
+    else:
+        raise ValueError('Invalid number of seeds, N must allow generating a valid lattice')
+
     # Extract the domain dimensions
     a, b = box[3], box[4]
 
-    # Initialize an array for the mapped points
-    mapped_points = np.zeros_like(lattice_points)
+    mapped_points = np.zeros((croot, croot, croot) + (3,), dtype=np.float64)  # For array inputs
 
-    # Loop over each lattice point
-    for i, (x, y, z) in enumerate(lattice_points):
-        # Calculate the gradient at the current points
-        gradient_basic_u = np.real(grad_u(x, y, z, coefficients, a, b)) + grad_basic_state(x, y, z, A)
+    # Compute the mapped forward lattice points
+    gradu_values = np.real(grad_u(col_x[:, None, None], col_y[None, :, None], col_z[None, None, :], coefficients, a, b)).T
+    gradphi_values = grad_basic_state(col_x[:, None, None], col_y[None, :, None], col_z[None, None, :], A)
+    mapped_points[:, :, :, 0] = lattice_points[:, :, :, 0] + gradphi_values[:, :, :, 0] + gradu_values[0, :, :, :]  
+    mapped_points[:, :, :, 1] = lattice_points[:, :, :, 1] + gradphi_values[:, :, :, 1] + gradu_values[1, :, :, :]  
+    mapped_points[:, :, :, 2] = lattice_points[:, :, :, 2] + gradphi_values[:, :, :, 2] + gradu_values[2, :, :, :]  
 
-        # Map the point forward by the gradient
-        mapped_points[i] = [x, y, z] + gradient_basic_u
-
-    return mapped_points
+    return mapped_points.reshape(-1, 3)

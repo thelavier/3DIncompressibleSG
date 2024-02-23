@@ -108,24 +108,6 @@ def create_cyc_initial(N, box, A, PeriodicX, PeriodicY, PeriodicZ, truncation):
     Raises:
         ValueError: If N is not a perfect cube, which is required for a valid lattice.
     """
-    # Compute the cubic root of the number of seeds to later check that we can generate a valid lattice
-    croot = round(N ** (1 / 3))
-
-    if N == croot ** 3:
-        # Create coordinate arrays for each dimension
-        col_0 = np.linspace(box[0], box[3], croot)
-        col_1 = np.linspace(box[1], box[4], croot)
-        col_2 = np.linspace(box[2], box[5], croot)
-
-        # Create a 3D lattice using meshgrid
-        Col_0, Col_1, Col_2 = np.meshgrid(col_0, col_1, col_2)
-
-        # Combine the coordinate arrays into a single matrix
-        lattice_points = np.column_stack((Col_0.flatten(), Col_1.flatten(), Col_2.flatten()))
-
-    else:
-        raise ValueError('Invalid number of seeds, N must allow generating a valid lattice')
-
     # Calculate FFT coefficients based on cyclone perturbation functions
     fourier_coefficients = aux.compute_fft_coefficients(box, truncation)
 
@@ -133,10 +115,10 @@ def create_cyc_initial(N, box, A, PeriodicX, PeriodicY, PeriodicZ, truncation):
     solution_coefficients = aux.compute_coefficients(box, fourier_coefficients)
 
     # Map the lattice points using the gradient of Phi + u
-    Zintermediate = aux.map_lattice_points(lattice_points, box, solution_coefficients, A)
+    Zintermediate = aux.map_lattice_points(N, box, solution_coefficients, A)
 
     # Construct a matrix of perturbations
-    perturbation = np.random.uniform(1, 1, size=(N, 3))
+    perturbation = np.random.uniform(0.99, 1, size=(N, 3))
 
     # Map the initial condition into the fundamental domain
     Z = aux.get_remapped_seeds(box, Zintermediate * perturbation, PeriodicX, PeriodicY, PeriodicZ)
