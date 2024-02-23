@@ -84,21 +84,24 @@ def Properties(Z, C, TC):
         tuple: Calculated Meridional Velocities, Zonal Velocities, Temperature, Total Energy, and Conservation Error.
     """
     # Compute Meridonal Velocities
-    MVel = (Z[:, :, 0] - C[:, :, 0])
+    MVel = get_velocity(Z, C, 'Meridional')
 
     # Compute Zonal Velocities
-    ZVel = (C[:, :, 1] - Z[:, :, 1])
+    ZVel = get_velocity(Z, C, 'Zonal')
+
+    # Compute Magnitude of Total Velocity 
+    TVel = np.linalg.norm(get_velocity(Z, C, 'Total'), axis = 2)
 
     # Compute Temperature
     T = Z[:, :, 2]
     
-    totalEnergy = np.sum(TC, axis=1)
+    KineticEnergy = np.sum(TC, axis = 1)
     
-    meanEnergy = np.mean(totalEnergy)
+    meanEnergy = np.mean(KineticEnergy)
 
-    ConservationError = (meanEnergy - totalEnergy) / meanEnergy
+    ConservationError = (meanEnergy - KineticEnergy) / meanEnergy
 
-    return MVel, ZVel, T, totalEnergy, ConservationError
+    return MVel, ZVel, TVel, T, KineticEnergy, ConservationError
 
 def get_comparison_indices(Ndt, NdtRef, tf, comptime):
     """
@@ -481,7 +484,11 @@ def map_lattice_points(N, box, coefficients, A):
         col_z = np.linspace(box[2], box[5], croot)
 
         # Create a 3D lattice using meshgrid
-        Col_X1, Col_Y1, Col_Z1 = np.meshgrid(col_x, col_y, col_z, indexing='ij')
+        # Pay attention to the indexing scheme. The lattice points and the gradient of the basic state are computed
+        # using the 'ij' indexing but the gradient of u is computed using the 'xy' indexing. This means that in order 
+        # to correctly combine the there matrices the gradient of u needs to be transposed with indexing 'ij' and 
+        # the lattice points and gradient of phi need to be transposed with indexing 'xy'.
+        Col_X1, Col_Y1, Col_Z1 = np.meshgrid(col_x, col_y, col_z, indexing='ij') 
 
         # Combine the coordinate arrays into a single matrix
         lattice_points = np.stack((Col_X1, Col_Y1, Col_Z1), axis=-1)
