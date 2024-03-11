@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import sparse
 import optimaltransportsolver as ots
 import weightguess as wg
 import auxfunctions as aux
@@ -31,7 +32,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
 
     # Setup extended J matrix for RHS of the ODE
     P = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
-    J = np.kron(np.eye(N, dtype=int), P)
+    J = sparse.kron(sparse.eye(N, dtype=int), sparse.csr_matrix(P))
 
     # Delete the MessagePack file if it exists to start fresh
     if os.path.exists('./data/SG_data.msgpack'):
@@ -68,7 +69,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
             print("Time Step 1") # Use for tracking progress of the code when debugging.
 
         # Use forward Euler to take an initial time step
-        Zint = Z_window[0] + dt * (J @ (np.array(Z_window[0] - C_window[0]).flatten())).reshape((N, 3))
+        Zint = Z_window[0] + dt * J.dot(np.array(Z_window[0] - C_window[0]).flatten()).reshape((N, 3)) # Use forward Euler
         Z_window[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY, PeriodicZ)
 
         w0 = wg.rescale_weights(box, Z_window[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
@@ -105,7 +106,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
                 print(f"Time Step {i}") # Use for tracking progress of the code when debugging
 
             # Use Adams-Bashforth to take a time step
-            Zint = Z_window[(i - 1) % 3] + (dt / 2) * (3 * J @ (np.array(Z_window[(i - 1) % 3] - C_window[(i - 1) % 3]).flatten()) - J @ (np.array(Z_window[(i - 2) % 3] - C_window[(i - 2) % 3]).flatten())).reshape((N, 3))
+            Zint = Z_window[(i - 1) % 3] + (dt / 2) * (3 * J.dot(np.array(Z_window[(i - 1) % 3] - C_window[(i - 1) % 3]).flatten()) - J.dot(np.array(Z_window[(i - 2) % 3] - C_window[(i - 2) % 3]).flatten())).reshape((N, 3)) # Use AB2
             Z_window[i % 3] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY, PeriodicZ)
 
             # Rescale the weights to generate an optimized initial guess
