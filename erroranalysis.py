@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott.geometry import pointcloud
-from ott.core.sinkhorn import sinkhorn
+from ott.solvers.linear import sinkhorn
 
 import auxfunctions as aux
 
