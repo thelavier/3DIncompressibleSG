@@ -107,7 +107,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
             'TransportCost': TC_window[1].tolist(),
         }))
 
-        # Apply Adams-Bashforth 2 to solve the ODE
+        # Apply a mixed Heun Adams-Bashforth 2 to solve the ODE
         for i in range(2, Ndt):
 
             if debug:

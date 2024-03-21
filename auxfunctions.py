@@ -5,6 +5,7 @@ import optimaltransportsolver as ots
 from pysdot import PowerDiagram
 from scipy.sparse import csr_matrix
 from scipy import sparse
+from petsc4py import PETSc
 
 def load_data(data):
     """
@@ -175,19 +176,60 @@ def get_comparison_indices(Ndt, NdtRef, tf, comptime):
     This function is used to find the corresponding indices in two time series datasets
     (e.g., positions or properties of particles) that are to be compared at a specific time.
 
-    Args:
-        Ndt (int): The number of data points in the first time series.
-        NdtRef (int): The number of data points in the second time series.
-        tf (float): The final time up to which the data points are recorded.
-        comptime (float): The specific time at which the comparison is to be made.
+    Parameters:
+    - Ndt (int): The number of data points in the first time series.
+    - NdtRef (int): The number of data points in the second time series.
+    - tf (float): The final time up to which the data points are recorded.
+    - comptime (float): The specific time at which the comparison is to be made.
 
     Returns:
-        tuple: A tuple of two integers representing the indices in the first and second 
+    - tuple: A tuple of two integers representing the indices in the first and second 
                time series respectively, corresponding to the comparison time.
     """
     ind = int(round((Ndt / tf) * comptime))
     indRef = int(round((NdtRef / tf) * comptime))
     return ind, indRef
+
+def solve(A, b):
+    """
+    Solve a linear system Ax = b using PETSc's Conjugate Gradient (CG) method
+    with Geometric Algebraic MultiGrid (GAMG) preconditioning.
+
+    This function is designed to solve sparse linear systems that arise from
+    discretizations of PDEs, which are common in scientific computing. CG is
+    an iterative method suitable for systems where A is symmetric positive-definite,
+    and GAMG is used to accelerate convergence.
+
+    Parameters:
+    - A (PETSc.Mat): The matrix representing the linear system.
+    - b (PETSc.Vec): The right-hand side vector in the linear system.
+
+    Returns:
+    - x (PETSc.Vec): The solution vector that satisfies Ax = b.
+
+    Note:
+    This function assumes that the matrix A is square, symmetric, and positive-definite.
+    The function will return a solution vector using the CG method, which may not
+    converge if these conditions are not met. It is up to the caller to ensure that
+    the matrix A fits the method's requirements.
+    """
+    # Create a sequential vector of the given size to store the solution of the linear system
+    size = A.getSizes()[0]
+    x = PETSc.Vec().createSeq(size)
+
+    # Create a KSP (Krylov subspace solver) object, which provides an interface to the Krylov subspace methods for solving linear systems
+    ksp = PETSc.KSP().create()
+    ksp.setType('cg') # Set the type of the KSP solver to Conjugate Gradient (CG)
+    ksp.getPC().setType('gamg') # Get the preconditioner context and set its type to Geometric Algebraic MultiGrid (GAMG)
+
+    # Set the operators (matrix and preconditioner) and options for the KSP solver
+    ksp.setOperators(A)
+    ksp.setFromOptions()
+
+    # Solve the linear system Ax = b, and store
+    ksp.solve(b, x)
+
+    return x
 
 def compute_normalization(box, ZRef):
     """
