@@ -1,6 +1,10 @@
 import numpy as np
 import msgpack
 from scipy.integrate import nquad
+import optimaltransportsolver as ots
+from pysdot import PowerDiagram
+from scipy.sparse import csr_matrix
+from scipy import sparse
 
 def load_data(data):
     """
@@ -29,7 +33,6 @@ def load_data(data):
     Z, C, W, M, TC = map(lambda x: np.array(x[1:]), (seeds, centroids, weights, mass, transportcost))
 
     return Z, C, W, M, TC
-
 
 def get_remapped_seeds(box, Z, PeriodicX, PeriodicY, PeriodicZ):
     """
@@ -71,7 +74,7 @@ def get_point_transform(point, matrix):
 
     return transformed_point
 
-def Properties(Z, C, TC):
+def get_properties(Z, C, TC):
     """
     Computes various physical properties based on seed and centroid positions.
 
@@ -102,6 +105,68 @@ def Properties(Z, C, TC):
     ConservationError = (meanEnergy - KineticEnergy) / meanEnergy
 
     return MVel, ZVel, TVel, T, KineticEnergy, ConservationError
+
+def get_centroid_velocity(Z, C, w, box, PeriodicX, PeriodicY, PeriodicZ):
+    """
+    Calculate the velocity of centroids in a power diagram given positions, weights, 
+    and boundary conditions.
+    
+    This function computes the velocity of centroids in a power diagram, which is 
+    derived from the derivatives of centroids and integrals with respect to weights 
+    and positions. The computation accounts for periodic boundary conditions along 
+    each axis.
+    
+    Parameters:
+    - Z (np.ndarray): The Nx3 array of centroid positions.
+    - C (np.ndarray): The Nx3 array of reference positions.
+    - w (np.ndarray): The weights associated with each centroid.
+    - box (np.ndarray): The bounding box of the domain as a 2x3 array.
+    - PeriodicX, PeriodicY, PeriodicZ (bool): Flags indicating periodicity along each axis.
+    
+    Returns:
+    - Cvel (np.ndarray): The calculated velocities of the centroids as a 3N x 1 matrix.
+    """
+    N = len(Z)
+
+    # Construct power diagram and extract derivatives
+    D = ots.make_domain(box, PeriodicX, PeriodicY, PeriodicZ)
+    pd = PowerDiagram(positions = Z, weights = w, domain = D)
+    mvs = pd.der_centroids_and_integrals_wrt_weight_and_positions()
+    m = csr_matrix((mvs.m_values, mvs.m_columns, mvs.m_offsets))
+
+    # Construct DCDw
+    row_mask_1 =  np.delete(np.arange(m.shape[0]), np.arange(3, m.shape[0], 4))  # Delete every 4th row
+    keep_mask_1 = np.arange(4 * N) % 4 == 3 # Create an keep mask for the columns
+    column_mask_1 = np.arange(4*N)[keep_mask_1] # Apply the mask to keep every 4th column
+    DCDw = m[row_mask_1][:, column_mask_1]
+
+    # Construct DCDz 
+    row_mask_2 = np.delete(np.arange(m.shape[0]), np.arange(3, m.shape[0], 4)) # Delete every 4th row
+    exclude_mask_2 = (np.arange(4 * N) - 3) % 4 == 0 # Create an exclude mask for the columns
+    column_mask_2 = np.arange(4*N)[~exclude_mask_2] # Invert the mask to delete every 4th column
+    DCDz = m[row_mask_2][:, column_mask_2]
+
+    # Construct DmDw
+    row_mask_3 = range(3, m.shape[0], 4) # Keep every 4th row
+    keep_mask_3 = np.arange(4 * N) % 4 == 3 # Create an keep mask for the columns
+    column_mask_3 = np.arange(4 * N)[keep_mask_3] # Apply the mask to keep every 4th column
+    DmDw = m[row_mask_3][:, column_mask_3]
+
+    # Construct DmDz
+    row_mask_4 = range(3, m.shape[0], 4) # Keep every 4th row
+    exclude_mask_4 = (np.arange(4 * N) - 3) % 4 == 0 # Create an exclude mask for the columns
+    column_mask_4 = np.arange(4*N)[~exclude_mask_4] # Invert the mask to delete every 4th column
+    DmDz = m[row_mask_4][:, column_mask_4]
+
+    # Construct DzDt
+    P = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
+    J = sparse.kron(sparse.eye(N, dtype=int), sparse.csr_matrix(P))
+    DzDt = J.dot((Z - C).flatten())
+
+    # Compute the Centroid Velocities
+    Cvel = ((-DCDw.dot(np.linalg.inv(DmDw))).dot(DmDz) + DCDz).dot(DzDt)
+
+    return Cvel
 
 def get_comparison_indices(Ndt, NdtRef, tf, comptime):
     """

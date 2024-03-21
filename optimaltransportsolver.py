@@ -1,6 +1,7 @@
 import numpy as np
 from pysdot import OptimalTransport
 from pysdot.domain_types import ConvexPolyhedraAssembly
+from scipy.sparse import csr_matrix
 
 #Constructs a domain to be passed to the laguerre functions
 def make_domain(box, PeriodicX, PeriodicY, PeriodicZ):
@@ -64,8 +65,10 @@ def ot_solve(domain, Y, psi0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, sol
     psi = ot.get_weights()
     postmass = ot.pd.integrals()
     transportcost = ot.pd.second_order_moments()
+    mvs = ot.pd.der_centroids_and_integrals_wrt_weight_and_positions()
+    m = csr_matrix((mvs.m_values, mvs.m_columns, mvs.m_offsets))
 
     if debug:
         print('Difference in target and final mass', np.linalg.norm(premass - postmass) / np.linalg.norm(premass))
 
-    return ot.pd.centroids(), psi, postmass, transportcost
+    return ot.pd.centroids(), psi, postmass, transportcost, m
