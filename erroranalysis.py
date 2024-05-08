@@ -1,56 +1,25 @@
-import jax
-import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import pointcloud
-from ott.solvers.linear import sinkhorn
+from geomloss import SamplesLoss
+import torch
 
 import auxfunctions as aux
 
-@jax.jit
-def solve_ott(a, b, x, y, epsilon):
+def Wasserstein_Distance(Z, M, ZRef, MRef, tf, comptime, box):
     """
-    Solves the optimal transport problem using the Sinkhorn algorithm.
-
-    Args:
-        a (array): Source measure.
-        b (array): Target measure.
-        x (array): Source points.
-        y (array): Target points.
-        epsilon (float): Regularization parameter for the Sinkhorn algorithm.
-
-    Returns:
-        tuple: f and g, the dual variables of the Sinkhorn algorithm.
-    """
-    n = len(a)
-    threshold = 0.01 / (n**0.33)  # Adaptive threshold based on the problem size
-    geom = pointcloud.PointCloud(jnp.array(x), jnp.array(y), epsilon=epsilon)
-    out = sinkhorn(geom, jnp.array(a), jnp.array(b),
-                   threshold=threshold,
-                   max_iterations=1000,
-                   norm_error=2,
-                   lse_mode=True)
-    # Center dual variables to facilitate comparison
-    f, g, _, _, _ = out
-    f, g = f - jnp.mean(f), g + jnp.mean(f)
-    return f, g
-
-def Sqrt_Sinkhorn_Loss(Z, M, ZRef, MRef, epsilon, tf, comptime, box):
-    """
-    Computes the square root of the Sinkhorn loss between two distributions.
+    Computes the wasserstein distance (sinkhorn divergence approximation) between two distributions.
 
     Args:
         Z (array): Current seed positions.
         M (array): Current mass distribution.
         ZRef (array): Reference seed positions.
         MRef (array): Reference mass distribution.
-        epsilon (float): Regularization parameter for Sinkhorn algorithm.
         tf (float): Final time for comparison.
         comptime (float): Specific time for comparison.
         box (list/tuple): Domain boundaries.
 
     Returns:
-        float: Normalized square root of the Sinkhorn loss.
+        float: Normalized wasserstein distance.
     """
     if comptime > tf:
         raise ValueError('Please select a valid comparison time.')
@@ -58,12 +27,24 @@ def Sqrt_Sinkhorn_Loss(Z, M, ZRef, MRef, epsilon, tf, comptime, box):
     ind, indRef = aux.get_comparison_indices(len(Z), len(ZRef), tf, comptime)
     normalization = aux.compute_normalization(box, ZRef[indRef])
 
-    f, g = solve_ott(M[ind], MRef[indRef], Z[ind], ZRef[indRef], epsilon)
-    p1, p2 = solve_ott(M[ind], M[ind], Z[ind], Z[ind], epsilon)
-    q1, q2 = solve_ott(MRef[indRef], MRef[indRef], ZRef[indRef], ZRef[indRef], epsilon)
+    use_cuda = torch.cuda.is_available()
+    dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
-    sol = np.sqrt(np.dot(M[ind], f - p1) + np.dot(MRef[indRef], g - q1))
-    return sol / normalization
+    Loss = SamplesLoss(
+            "sinkhorn",
+            p=2,
+            debias=True, 
+            backend="multiscale"
+        )
+
+    ind, indRef = aux.get_comparison_indices(len(M), len(MRef), 52, 12)
+    a = torch.from_numpy(M[ind]).type(dtype)
+    b = torch.from_numpy(MRef[indRef]).type(dtype)
+    x = torch.from_numpy(Z[ind]).type(dtype)
+    y = torch.from_numpy(ZRef[indRef]).type(dtype)
+
+    sol = Loss(a, x, b, y)
+    return sol.item() * normalization
 
 def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime, box):
     """
@@ -91,7 +72,7 @@ def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime, box):
 
     diff = np.linalg.norm(Z[ind].astype(float) - ZRef[indRef].astype(float), axis=1) ** 2
     sol = np.sqrt(np.dot(MRef[indRef], diff))
-    return sol / normalization
+    return sol * normalization
     
 def Root_Mean_Squared_Velocity(Z, C, Type):
     """

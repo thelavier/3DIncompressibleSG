@@ -22,6 +22,12 @@ def point_animator(data, ZorC, Dim, box, tf):
 
     # Load data
     Z, C, _, _, _ = aux.load_data(data)
+    
+    # Apply mask to filter out NaNs for each timestep separately
+    if ZorC == 'Z':
+        Z = [z[~np.isnan(z).any(axis=1)] for z in Z]
+    else:
+        C = [c[~np.isnan(c).any(axis=1)] for c in C]
 
     # Determine animation bounds
     Z_bounds = get_animation_bounds(Z) if ZorC == 'Z' else box

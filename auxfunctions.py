@@ -4,7 +4,9 @@ from scipy.integrate import nquad
 import optimaltransportsolver as ots
 from pysdot import PowerDiagram
 from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import spsolve
 from scipy import sparse
+from scipy.spatial import cKDTree
 from petsc4py import PETSc
 
 def load_data(data):
@@ -30,8 +32,27 @@ def load_data(data):
             mass.append(np.array(row.get('Mass', []), dtype=np.float64))
             transportcost.append(np.array(row.get('TransportCost', []), dtype=np.float64))
 
+    # Assuming the first entry is a header and should be ignored
+    seeds = seeds[1:]
+    centroids = centroids[1:]
+    weights = weights[1:]
+    mass = mass[1:]
+    transportcost = transportcost[1:]
+
+    # Find the length of the longest array
+    max_length = max(len(arr) for arr in seeds + centroids + weights + mass + transportcost)
+
+    # Check for mismatch and pad shorter arrays with NaNs if necessary
+    if any(len(arr) != max_length for arr in seeds + centroids + weights + mass + transportcost):
+        print("Mismatch detected. Padding arrays...")
+        seeds = [np.pad(arr, ((0, max_length - arr.shape[0]), (0, 0)), 'constant', constant_values=np.nan) for arr in seeds]
+        centroids = [np.pad(arr, ((0, max_length - arr.shape[0]), (0, 0)), 'constant', constant_values=np.nan) for arr in centroids]
+        weights = [np.pad(arr, (0, max_length - len(arr)), 'constant', constant_values=np.nan) for arr in weights]
+        mass = [np.pad(arr, (0, max_length - len(arr)), 'constant', constant_values=np.nan) for arr in mass]
+        transportcost = [np.pad(arr, (0, max_length - len(arr)), 'constant', constant_values=np.nan) for arr in transportcost]
+
     # Convert lists to numpy arrays and exclude the first entry
-    Z, C, W, M, TC = map(lambda x: np.array(x[1:]), (seeds, centroids, weights, mass, transportcost))
+    Z, C, W, M, TC = np.array(seeds), np.array(centroids), np.array(weights), np.array(mass), np.array(transportcost)
 
     return Z, C, W, M, TC
 
@@ -165,9 +186,36 @@ def get_centroid_velocity(Z, C, w, box, PeriodicX, PeriodicY, PeriodicZ):
     DzDt = J.dot((Z - C).flatten())
 
     # Compute the Centroid Velocities
-    Cvel = ((-DCDw.dot(np.linalg.inv(DmDw))).dot(DmDz) + DCDz).dot(DzDt)
+    Cvel = (DCDw.dot(-spsolve(DmDw, DmDz)) + DCDz).dot(DzDt)
 
     return Cvel
+
+def add_points_ensuring_distance(M_points, N):
+    M = len(M_points)
+    target_distance = 1 / np.sqrt(N + M)
+    new_points = []
+    tree = cKDTree(M_points)  # Create a k-d tree from existing points
+    
+    attempts = 0
+    max_attempts = 100000  # Increased attempts for more chances
+
+    while len(new_points) < N and attempts < max_attempts:
+        new_point = np.random.uniform(-1, 1, (1, 3))
+        # Use the k-d tree to find the distance to the nearest point
+        closest_dist, _ = tree.query(new_point)
+        if closest_dist > target_distance:
+            new_points.append(new_point[0])
+            # Update the tree with the new point
+            tree = cKDTree(np.vstack([M_points, new_points]))
+        attempts += 1
+
+    if len(new_points) < N:
+        print("Failed to place all new points within the maximum attempts allowed.")
+    else:
+        print("All new points placed successfully.")
+
+    all_points = np.vstack((M_points, new_points))
+    return all_points
 
 def get_comparison_indices(Ndt, NdtRef, tf, comptime):
     """
@@ -186,8 +234,8 @@ def get_comparison_indices(Ndt, NdtRef, tf, comptime):
     - tuple: A tuple of two integers representing the indices in the first and second 
                time series respectively, corresponding to the comparison time.
     """
-    ind = int(round((Ndt / tf) * comptime))
-    indRef = int(round((NdtRef / tf) * comptime))
+    ind = int(round((Ndt / tf) * comptime)) - 1
+    indRef = int(round((NdtRef / tf) * comptime)) - 1
     return ind, indRef
 
 def solve(A, b):

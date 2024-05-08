@@ -1,10 +1,12 @@
 import numpy as np
 from scipy import sparse
+from scipy.sparse.linalg import spsolve
 import optimaltransportsolver as ots
 import weightguess as wg
 import auxfunctions as aux
 import msgpack
 import os
+from pysdot.OptimalTransport import BadInitialGuess
 
 def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, PeriodicZ, solver = 'Petsc', debug = False):
     """
@@ -86,9 +88,9 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
 
         # Compute the "velocity of the weights"
         velF = vel.flatten(order = 'F')
-        DmDzvel = DmDz.dot(velF)
-        wvel = np.zeros((N, 1))
-        wvel[:-1] = np.linalg.solve(-DmDwMod, DmDzvel[:,-1])
+        DmDzvel = DmDz.dot(velF)[:-1].reshape(-1, 1)
+        wvel = np.zeros((N, ))
+        wvel[:-1] = spsolve(-DmDwMod, DmDzvel)
 
         # Use forward Euler to take an initial time step
         wint = w_adjusted + wvel # Use forward Euler
@@ -96,8 +98,15 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
         Z_window[1] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY, PeriodicZ)
 
         # Solve the optimal transport problem at time-step 1
-        w0 = wg.rescale_weights(box, Z_window[1], wint, PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
-        sol = ots.ot_solve(D, Z_window[1], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
+        try:
+            w0 = wg.rescale_weights(box, Z_window[1], wint, PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
+            sol = ots.ot_solve(D, Z_window[1], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
+            #sol = ots.ot_solve(D, Z_window[1], wint, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
+        except BadInitialGuess:
+            # Handle the case where the initial guess is bad
+            print("Bad initial guess encountered. Resetting weights to zero and retrying.")
+            w0 = wg.rescale_weights(box, Z_window[1], np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
+            sol = ots.ot_solve(D, Z_window[1], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
 
         C_window[1] = sol[0].copy() # Store the centroids
         w_window[1] = sol[1].copy() # Store the optimal weights
@@ -147,20 +156,25 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
 
             # Compute the "velocity of the weights"
             velF = vel.flatten(order = 'F')
-            DmDzvel = DmDz.dot(velF)
-            wvel = np.zeros((N, 1))
-            wvel[:-1] = np.linalg.solve(-DmDwMod, DmDzvel[:,-1])
+            DmDzvel = DmDz.dot(velF)[:-1].reshape(-1, 1)
+            wvel = np.zeros((N, ))
+            wvel[:-1] = spsolve(-DmDwMod, DmDzvel)
 
             # Use Adams-Bashforth to take a time step
             wint = w_adjusted + wvel
             Zint = Z_window[(i - 1) % 3] + vel
             Z_window[i % 3] = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY, PeriodicZ)
 
-            # Rescale the weights to generate an optimized initial guess
-            w0 = wg.rescale_weights(box, Z_window[i % 3], wint, PeriodicX, PeriodicY, PeriodicZ)[0]
-
-            # Solve the optimal transport problem
-            sol = ots.ot_solve(D, Z_window[i % 3], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug)
+            # Rescale the weights to generate an optimized initial guess and solve the optimal transport problem
+            try:
+                w0 = wg.rescale_weights(box, Z_window[i % 3], wint, PeriodicX, PeriodicY, PeriodicZ)[0]
+                sol = ots.ot_solve(D, Z_window[i % 3], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug)
+                #sol = ots.ot_solve(D, Z_window[i % 3], wint, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug)
+            except BadInitialGuess:
+                # Handle the case where the initial guess is bad
+                print("Bad initial guess encountered. Resetting weights to zero and retrying.")
+                w0 = wg.rescale_weights(box, Z_window[i % 3], np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
+                sol = ots.ot_solve(D, Z_window[i % 3], w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
 
             # Save the centroids and optimal weights
             C_window[i % 3] = sol[0].copy()

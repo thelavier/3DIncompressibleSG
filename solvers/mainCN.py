@@ -116,7 +116,7 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
                     break # Convergence achieved, use Z_CN as it is for the Crank-Nicolson step
                 else:
                     # Update Z_CN for the next iteration
-                    Z_CN -= aux.get_remapped_seeds(box, delta_Z.reshape((N, 3)), PeriodicX, PeriodicY, PeriodicZ)
+                    Z_CN -= aux.get_remapped_seeds(box, np.array(delta_Z).reshape((N, 3)), PeriodicX, PeriodicY, PeriodicZ)
 
             # Crank-Nicolson step (average the slopes at the original and predicted positions)
             Zint = Z + (dt / 2) * (J.dot(np.array(Z_CN - sol_CN[0]).flatten()) + J.dot(np.array(Z - sol[0]).flatten())).reshape((N, 3)) # Use Crank-Nicolson
