@@ -117,10 +117,7 @@ def create_cyc_initial(N, box, A, PeriodicX, PeriodicY, PeriodicZ, truncation):
     # Map the lattice points using the gradient of Phi + u
     Zintermediate = aux.map_lattice_points(N, box, solution_coefficients, A)
 
-    # Construct a matrix of perturbations
-    perturbation = np.random.uniform(0.99, 1, size=(N, 3))
-
     # Map the initial condition into the fundamental domain
-    Z = aux.get_remapped_seeds(box, Zintermediate * perturbation, PeriodicX, PeriodicY, PeriodicZ)
+    Z = aux.get_remapped_seeds(box, Zintermediate, PeriodicX, PeriodicY, PeriodicZ)
 
     return Z

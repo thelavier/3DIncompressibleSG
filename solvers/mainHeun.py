@@ -30,6 +30,9 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
     Lx, Ly, Lz = [box[i+3] - box[i] for i in range(3)]
     err_tol = (PercentTolerance / 100) * (Lx * Ly * Lz / N)
 
+    # Construct a matrix of perturbations
+    perturbation = np.random.uniform(0.99, 1, size=(N, 3))
+
     # Setup extended J matrix for RHS of the ODE
     P = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
     J = sparse.kron(sparse.eye(N, dtype=int), sparse.csr_matrix(P))
@@ -56,8 +59,8 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
         
         # Construct the initial state
         Z = Z0.copy() 
-        w0 = wg.rescale_weights(box, Z, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
-        sol = ots.ot_solve(D, Z, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
+        w0 = wg.rescale_weights(box, Z * perturbation, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
+        sol = ots.ot_solve(D, Z * perturbation, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
 
         # Save the data for time step 0
         msgpackfile.write(msgpack.packb({

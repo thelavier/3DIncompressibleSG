@@ -30,6 +30,9 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
     Lx, Ly, Lz = [box[i+3] - box[i] for i in range(3)]
     err_tol = (PercentTolerance / 100) * (Lx * Ly * Lz / N)
 
+    # Construct a matrix of perturbations
+    perturbation = np.random.uniform(0.99, 1, size=(N, 3))
+
     # Setup extended J matrix for RHS of the ODE
     P = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
     J = sparse.kron(sparse.eye(N, dtype=int), sparse.csr_matrix(P))
@@ -55,8 +58,8 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
             print("Time Step 0") # Use for tracking progress of the code when debugging.
 
         # Construct the initial state
-        w0 = wg.rescale_weights(box, Z0, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
-        sol = ots.ot_solve(D, Z0, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
+        w0 = wg.rescale_weights(box, Z0 * perturbation, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0] # Rescale the weights to generate an optimized initial guess
+        sol = ots.ot_solve(D, Z0 * perturbation, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug) # Solve the optimal transport problem
 
         # Create a sliding window buffer for Z, C, w, and M
         Z_window = [Z0.copy(), Z0.copy(), Z0.copy()]

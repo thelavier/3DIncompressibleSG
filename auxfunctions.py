@@ -272,6 +272,7 @@ def solve(A, b):
 
     # Set the operators (matrix and preconditioner) and options for the KSP solver
     ksp.setOperators(A)
+    ksp.setTolerances(rtol=1e-5)
     ksp.setFromOptions()
 
     # Solve the linear system Ax = b, and store
@@ -664,3 +665,38 @@ def map_lattice_points(N, box, coefficients, A):
     mapped_points[:, :, :, 2] = lattice_points[:, :, :, 2] + gradphi_values[:, :, :, 2] + gradu_values[2, :, :, :]  
 
     return mapped_points.reshape(-1, 3)
+
+def check_sparsity_petsc(A):
+    # Get the sizes and number of nonzeros
+    m, n = A.getSize()
+    info = A.getInfo()  # Get information dictionary about the matrix
+    nnz = info['nz_used']  # Number of nonzeros actually used
+    total_elements = m * n
+    sparsity = nnz / total_elements
+    print(f"Matrix Sparsity: {sparsity:.4f} (nonzero elements/total elements)")
+
+def check_symmetry_petsc(A):
+    # Using MatTranspose to get the transpose of A
+    AT = A.transpose()  # This method handles allocation and returns the transposed matrix
+
+    # Create a matrix to store A - AT
+    M_diff = A.copy()
+    M_diff.axpy(-1, AT)  # M_diff = A - AT
+
+    # Calculate the Frobenius norm of the difference
+    norm = M_diff.norm(PETSc.NormType.FROBENIUS)
+    is_symmetric = norm == 0
+    print(f"Matrix is Symmetric: {is_symmetric}")
+
+def check_definiteness_petsc(A):
+    ksp = PETSc.KSP().create()
+    pc = ksp.getPC()
+    pc.setType(PETSc.PC.Type.CHOLESKY)
+    try:
+        pc.setOperators(A)
+        pc.setUp()
+        is_definite = True
+    except Exception as e:
+        print(f"Failed to perform Cholesky factorization: {str(e)}")
+        is_definite = False
+    print(f"Matrix is Positive Definite: {is_definite}")
