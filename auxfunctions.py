@@ -217,26 +217,26 @@ def add_points_ensuring_distance(M_points, N):
     all_points = np.vstack((M_points, new_points))
     return all_points
 
-def get_comparison_indices(Ndt, NdtRef, tf, comptime):
+def get_comparison_indices(Ndt, NdtRef, tf):
     """
-    Computes the indices for comparison at a specific time from two time series.
-
-    This function is used to find the corresponding indices in two time series datasets
-    (e.g., positions or properties of particles) that are to be compared at a specific time.
+    Computes the indices for comparison at specific intervals from two time series.
 
     Parameters:
-    - Ndt (int): The number of data points in the first time series.
-    - NdtRef (int): The number of data points in the second time series.
+    - Ndt (int): The number of data points in the time series being inspected.
+    - NdtRef (int): The number of data points in the reference time series.
     - tf (float): The final time up to which the data points are recorded.
-    - comptime (float): The specific time at which the comparison is to be made.
 
     Returns:
-    - tuple: A tuple of two integers representing the indices in the first and second 
-               time series respectively, corresponding to the comparison time.
+    - list: A list of tuples where each tuple contains two integers representing the indices in the inspected and reference 
+             time series respectively, corresponding to the comparison times.
     """
-    ind = int(round((Ndt / tf) * comptime)) - 1
-    indRef = int(round((NdtRef / tf) * comptime)) - 1
-    return ind, indRef
+    indices = []
+    for step in range(Ndt):
+        comptime = (step / Ndt) * tf
+        ind = step
+        indRef = min(int(round((NdtRef / tf) * comptime)), NdtRef - 1)
+        indices.append((ind, indRef))
+    return indices
 
 def solve(A, b):
     """

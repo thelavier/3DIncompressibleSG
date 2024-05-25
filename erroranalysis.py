@@ -5,27 +5,20 @@ import torch
 
 import auxfunctions as aux
 
-def Wasserstein_Distance(Z, M, ZRef, MRef, tf, comptime, box):
+def Wasserstein_Distance(Z, M, ZRef, MRef, indices):
     """
-    Computes the wasserstein distance (sinkhorn divergence approximation) between two distributions.
+    Computes the Wasserstein distance (Sinkhorn divergence approximation) between two distributions for aligned timesteps.
 
     Args:
         Z (array): Current seed positions.
         M (array): Current mass distribution.
         ZRef (array): Reference seed positions.
         MRef (array): Reference mass distribution.
-        tf (float): Final time for comparison.
-        comptime (float): Specific time for comparison.
-        box (list/tuple): Domain boundaries.
+        indices (list): List of tuples with indices for comparison.
 
     Returns:
-        float: Normalized wasserstein distance.
+        list: List of Wasserstein distances at each comparison time.
     """
-    if comptime > tf:
-        raise ValueError('Please select a valid comparison time.')
-
-    ind, indRef = aux.get_comparison_indices(len(Z), len(ZRef), tf, comptime)
-
     use_cuda = torch.cuda.is_available()
     dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
@@ -36,13 +29,21 @@ def Wasserstein_Distance(Z, M, ZRef, MRef, tf, comptime, box):
             backend="multiscale"
         )
 
-    a = torch.from_numpy(M[ind]).type(dtype)
-    b = torch.from_numpy(MRef[indRef]).type(dtype)
-    x = torch.from_numpy(Z[ind]).type(dtype)
-    y = torch.from_numpy(ZRef[indRef]).type(dtype)
+    distances = []
+    counter = 1 
+    for ind, indRef in indices:
+        a = torch.from_numpy(M[ind]).type(dtype)
+        b = torch.from_numpy(MRef[indRef]).type(dtype)
+        x = torch.from_numpy(Z[ind]).type(dtype)
+        y = torch.from_numpy(ZRef[indRef]).type(dtype)
 
-    sol = Loss(a, x, b, y)
-    return sol.item()
+        sol = Loss(a, x, b, y)
+        distances.append(sol.item())
+
+        print(counter, 'of', len(indices))
+        counter += 1
+
+    return distances
 
 def Weighted_Euclidian_Error(Z, ZRef, MRef, tf, comptime, box):
     """
