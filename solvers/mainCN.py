@@ -1,6 +1,8 @@
 import numpy as np
 from scipy import sparse
+import scipy.sparse.linalg as spla
 import optimaltransportsolver as ots
+import petsc4py
 from petsc4py import PETSc
 import weightguess as wg
 import auxfunctions as aux
@@ -30,8 +32,6 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
     D = ots.make_domain(box, PeriodicX, PeriodicY, PeriodicZ) # Construct the domain
     Lx, Ly, Lz = [box[i+3] - box[i] for i in range(3)]
     err_tol = (PercentTolerance / 100) * (Lx * Ly * Lz / N)
-    maxiter = 100
-    newttol = 1e-3
 
     # Construct a matrix of perturbations
     perturbation = np.random.uniform(0.99, 1, size=(N, 3))
@@ -74,114 +74,99 @@ def SG_solver(box, Z0, PercentTolerance, FinalTime, Ndt, PeriodicX, PeriodicY, P
             'Mass': sol[2].tolist(),
             'TransportCost': sol[3].tolist(),
         }))
-        
-        # Apply CN's Method to solve the ODE
+
+        snes = PETSc.SNES().create()
+        snes.setType('newtonls')
+        snes.setTolerances(max_it=100000, rtol=1e-5, atol=1e-5, stol=1e-2)
+        ksp = snes.getKSP()
+        ksp.setType('gmres')
+        pc = ksp.getPC()
+        pc.setType('gamg')
+
         for i in range(1, Ndt):
-
             if debug:
-                print(f"Time Step {i}") # Use for tracking progress of the code when debugging
+                print(f"Time Step {i}")
 
-            # Set initial guess for Newton-Raphson
-            Z_CN = Z
+            Z_CN = PETSc.Vec().createWithArray(Z.flatten())
+            f = PETSc.Vec().createWithArray(np.zeros_like(Z.flatten()))
 
-            # Newton-Raphson Iterations
-            for newtiter in range(maxiter):
+            def residualSNES(snes, x, f):
+                Z_CN_arr = x.getArray(readonly=True).reshape((N, 3)).copy()
+                w0 = wg.rescale_weights(box, Z_CN_arr, np.zeros(shape=(N,)), PeriodicX, PeriodicY, PeriodicZ)[0]
+                sol_CN = ots.ot_solve(D, Z_CN_arr, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, False)
 
-                # Before the Newton-Raphson iterations start
-                if newtiter == 0:
-                    sol_CN = sol # Use the previously solved optimal transport problem's solution
-                else:
-                    # Rescale the weights and solve the optimal transport problem
-                    w0 = wg.rescale_weights(box, Z_CN, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0]
-                    print('Time Step', i, 'Newton Iteration', newtiter)
-                    sol_CN = ots.ot_solve(D, Z_CN, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug)
+                F = (Z_CN_arr - Z).flatten() - (dt / 2) * (J.dot((Z_CN_arr - sol_CN[0]).flatten()) + J.dot((Z - sol[0]).flatten()))
+                f.setArray(F)
 
-                F = (Z_CN - Z).flatten() - (dt / 2) * (J.dot((Z_CN - sol_CN[0]).flatten()) + J.dot((Z - sol[0]).flatten()))
+            def formJacobian(snes, x, Jmat, Pmat):
+                Z_CN_arr = x.getArray(readonly=True).reshape((N, 3)).copy()
+                w0 = wg.rescale_weights(box, Z_CN_arr, np.zeros(shape=(N,)), PeriodicX, PeriodicY, PeriodicZ)[0]
+                sol_CN = ots.ot_solve(D, Z_CN_arr, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, False)
 
-                # Construct DCDz 
                 m = sol_CN[4].copy()
-                row_mask = np.delete(np.arange(m.shape[0]), np.arange(3, m.shape[0], 4)) # Delete every 4th row
-                exclude_mask = (np.arange(4 * N) - 3) % 4 == 0 # Create an exclude mask for the columns
-                column_mask = np.arange(4*N)[~exclude_mask] # Invert the mask to delete every 4th column
+                row_mask = np.delete(np.arange(m.shape[0]), np.arange(3, m.shape[0], 4))
+                exclude_mask = (np.arange(4 * N) - 3) % 4 == 0
+                column_mask = np.arange(4 * N)[~exclude_mask]
                 DCDz = m[row_mask][:, column_mask]
 
-                # Construct the Gradient of F
                 GradF = sparse.eye(3 * N) + (dt / 2) * J.dot(DCDz)
+    
+                print('Matrix norm', spla.norm(GradF))
 
-                # Convert GradF to PETSc matrix for the solver
-                A = PETSc.Mat().createAIJ(size=GradF.shape, csr=(GradF.indptr, GradF.indices, GradF.data))
-                b = PETSc.Vec().createWithArray(F)  # Assuming F is a 1-D array
-        
-                # Solve the linear system Ax = B using PETSc solver
-                delta_Z = aux.solve(A, b)
+                Jmat.setValuesCSR(GradF.indptr, GradF.indices, GradF.data)
+                Jmat.assemble()
 
-                # Initialize damping to find the best update
-                lambda_ = 1.0  # Start with full step
-                best_F_norm = np.linalg.norm(F)
-                reduction_found = False
+                if Pmat != Jmat:
+                    Pmat.setValuesCSR(GradF.indptr, GradF.indices, GradF.data)
+                    Pmat.assemble()
 
-                for _ in range(50):  # Limit the number of damping trials
-                    Z_new = aux.get_remapped_seeds(box, Z_CN - lambda_ * np.array(delta_Z).reshape((N, 3)), PeriodicX, PeriodicY, PeriodicZ)
-                    w0 = wg.rescale_weights(box, Z_new, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0]
-                    sol_new = ots.ot_solve(D, Z_new, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug)
-                    F_new = (Z_new - Z).flatten() - (dt / 2) * (J.dot((Z_new - sol_new[0]).flatten()) + J.dot((Z - sol[0]).flatten()))
-                    F_norm_new = np.linalg.norm(F_new)
-                    if F_norm_new < best_F_norm:
-                        best_F_norm = F_norm_new
-                        Z_best = Z_new # Store the best found solution
-                        sol_best = sol_new
-                        F_best = F_new
-                        reduction_found = True
-                        break  # Accept the first reduction in norm
-                    lambda_ *= 0.75  # Reduce lambda if no improvement
+            def custom_monitor(snes, its, fgnorm):
+                print(f"Iteration {its}, Residual norm {fgnorm}")
 
-                # Apply the best update found, if any
-                if reduction_found:
-                    Z_CN = Z_best
-                    sol_CN = sol_best
-                    F = F_best
+            Jmat = PETSc.Mat().create()
+            Jmat.setSizes([3 * N, 3 * N])
+            Jmat.setType('aij')
+            Jmat.setUp()
 
-                    # Construct DCDz 
-                    m = sol_CN[4].copy()
-                    row_mask = np.delete(np.arange(m.shape[0]), np.arange(3, m.shape[0], 4)) # Delete every 4th row
-                    exclude_mask = (np.arange(4 * N) - 3) % 4 == 0 # Create an exclude mask for the columns
-                    column_mask = np.arange(4*N)[~exclude_mask] # Invert the mask to delete every 4th column
-                    DCDz = m[row_mask][:, column_mask]
+            snes.setFunction(residualSNES, f)
+            snes.setJacobian(formJacobian, Jmat, Jmat)
 
-                    # Construct the Gradient of F
-                    GradF = sparse.eye(3 * N) + (dt / 2) * J.dot(DCDz)
+            # Add a custom monitor
+            snes.setMonitor(custom_monitor)
 
-                    # Convert GradF to PETSc matrix for the solver
-                    A = PETSc.Mat().createAIJ(size=GradF.shape, csr=(GradF.indptr, GradF.indices, GradF.data))
-                    b = PETSc.Vec().createWithArray(F)  # Assuming F is a 1-D array
-        
-                    # Solve the linear system Ax = B using PETSc solver
-                    delta_Z = aux.solve(A, b)
+            for i in range(1, Ndt):
+                if debug:
+                    print(f"Time Step {i}")
+
+                Z_CN = PETSc.Vec().createWithArray(Z.flatten())
+                f = PETSc.Vec().createWithArray(np.zeros_like(Z.flatten()))
+
+                snes.solve(None, Z_CN)
+
+                residualSNES(None, Z_CN, f)
+
+                # Print preconditioner settings
+                if snes.converged:
+                    print(f"SNES converged at time step {i} with reason: {snes.getConvergedReason()} and final residual norm: {snes.getFunctionNorm()}")
+                    Z_CN = Z_CN.getArray().reshape((N, 3))
+                    w0 = wg.rescale_weights(box, Z_CN, np.zeros(shape=(N,)), PeriodicX, PeriodicY, PeriodicZ)[0]
+                    sol_CN = ots.ot_solve(D, Z_CN, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, False)
+
+                    Zint = Z + (dt / 2) * (J.dot((Z_CN - sol_CN[0]).flatten()) + J.dot((Z - sol[0]).flatten())).reshape((N, 3))
+                    Z = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY, PeriodicZ)
+
+                    w0 = wg.rescale_weights(box, Z, np.zeros(shape=(N,)), PeriodicX, PeriodicY, PeriodicZ)[0]
+                    sol = ots.ot_solve(D, Z, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, False)
+
+                    with open('./data/CN_SG_data.msgpack', 'ab') as msgpackfile:
+                        msgpackfile.write(msgpack.packb({
+                            'time_step': i,
+                            'Seeds': Z.tolist(),
+                            'Centroids': sol[0].tolist(),
+                            'Weights': sol[1].tolist(),
+                            'Mass': sol[2].tolist(),
+                            'TransportCost': sol[3].tolist(),
+                        }))
                 else:
-                    print('No improvement found, consider adjusting lambda or debugging the function/residual calculations')
-
-                # Check for convergence
-                if np.linalg.norm(delta_Z.getArray()) < newttol:
-                    print('Convergence achieved')
-                    break  # Convergence achieved, use Z_CN as it is for the Crank-Nicolson step
-                else:
-                    print('Newton Raphson Convergence', np.linalg.norm(delta_Z.getArray()))
-                    print('Function norm', np.linalg.norm(F)) 
-
-            # Crank-Nicolson step (average the slopes at the original and predicted positions)
-            Zint = Z + (dt / 2) * (J.dot(np.array(Z_CN - sol_CN[0]).flatten()) + J.dot(np.array(Z - sol[0]).flatten())).reshape((N, 3)) # Use Crank-Nicolson
-            Z = aux.get_remapped_seeds(box, Zint, PeriodicX, PeriodicY, PeriodicZ)
-
-            # Rescale the weights and solve the optimal transport problem
-            w0 = wg.rescale_weights(box, Z, np.zeros(shape = (N,)), PeriodicX, PeriodicY, PeriodicZ)[0]
-            sol = ots.ot_solve(D, Z, w0, err_tol, PeriodicX, PeriodicY, PeriodicZ, box, solver, debug)
-
-            # Save the data continuously
-            msgpackfile.write(msgpack.packb({
-                'time_step': i,
-                'Seeds': Z.tolist(),
-                'Centroids': sol[0].tolist(),
-                'Weights': sol[1].tolist(),
-                'Mass': sol[2].tolist(),
-                'TransportCost': sol[3].tolist(),
-            }))
+                    print("SNES did not converge at time step", i)
+                    break

@@ -106,7 +106,7 @@ def get_properties(Z, C, TC):
         TC (numpy.ndarray): Transport cost array.
 
     Returns:
-        tuple: Calculated Meridional Velocities, Zonal Velocities, Temperature, Total Energy, and Conservation Error.
+        tuple: Calculated Meridional Velocities, Zonal Velocities, Total Velocities, Temperature, Kinetic Energy, and Conservation Error.
     """
     # Compute Meridonal Velocities
     MVel = get_velocity(Z, C, 'Meridional')
